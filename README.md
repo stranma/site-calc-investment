@@ -188,3 +188,7 @@ MIT License
 
 - Issues: https://github.com/site-calc/investment-client/issues
 - Documentation: https://docs.site-calc.example.com
+
+---
+
+Part of the [Site-Calc](https://github.com/stranma/site-calc) platform.
