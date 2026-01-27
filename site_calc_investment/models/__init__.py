@@ -35,7 +35,6 @@ from site_calc_investment.models.requests import (
 from site_calc_investment.models.responses import (
     Job,
     DeviceSchedule,
-    GridFlows,
     SiteResult,
     InvestmentMetrics,
     Summary,
@@ -78,7 +77,6 @@ __all__ = [
     # Response models
     "Job",
     "DeviceSchedule",
-    "GridFlows",
     "SiteResult",
     "InvestmentMetrics",
     "Summary",
