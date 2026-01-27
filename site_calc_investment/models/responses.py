@@ -23,6 +23,12 @@ class Job(BaseModel):
     message: Optional[str] = Field(None, description="Status message")
     error: Optional[Dict] = Field(None, description="Error details if failed")
     estimated_completion_seconds: Optional[int] = Field(None, description="Estimated completion time")
+    # Fields returned by server for completed/failed jobs
+    objective_value: Optional[float] = Field(None, description="Optimization objective value")
+    solver_time: Optional[float] = Field(None, description="Solver execution time in seconds")
+    total_time: Optional[float] = Field(None, description="Total job time in seconds")
+    error_code: Optional[str] = Field(None, description="Error code (e.g., PROBLEM_INFEASIBLE, SOLVER_TIMEOUT)")
+    suggestion: Optional[str] = Field(None, description="Suggestion for resolving errors")
 
 
 class DeviceSchedule(BaseModel):
@@ -37,16 +43,9 @@ class DeviceSchedule(BaseModel):
     )
     soc: Optional[List[float]] = Field(None, description="State of charge (0-1) for storage devices")
     binary_status: Optional[List[int]] = Field(None, description="Binary on/off status (0/1) for CHP")
-
-
-class GridFlows(BaseModel):
-    """Grid import/export flows for a site."""
-
-    import_flow: Optional[List[float]] = Field(None, alias="import", description="MW imported from grid")
-    export: Optional[List[float]] = Field(None, description="MW exported to grid")
-
-    class Config:
-        populate_by_name = True
+    ancillary_reservations: Optional[Dict[str, List[float]]] = Field(
+        None, description="Reserved capacity by service (e.g., {'afrr_plus': [...], 'afrr_minus': [...]})"
+    )
 
 
 class SiteResult(BaseModel):
@@ -61,11 +60,13 @@ class SiteResult(BaseModel):
 class InvestmentMetrics(BaseModel):
     """Investment analysis metrics.
 
-    Financial metrics calculated from the optimization results,
-    including NPV, IRR, and payback period.
+    Financial metrics calculated from the optimization results.
+    NPV and IRR are typically calculated client-side using the
+    annual_revenue_by_year and annual_costs_by_year arrays along
+    with investment_parameters (discount_rate, device_capital_costs).
     """
 
-    npv: float = Field(..., description="Net present value (EUR)")
+    npv: Optional[float] = Field(None, description="Net present value (EUR) - typically calculated client-side")
     irr: Optional[float] = Field(None, description="Internal rate of return (fraction, e.g., 0.12 = 12%)")
     payback_period_years: Optional[float] = Field(None, description="Simple payback period (years)")
     total_revenue_10y: Optional[float] = Field(None, description="Total revenue over planning horizon (EUR)")
