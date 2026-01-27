@@ -260,19 +260,23 @@ class InvestmentClient:
 
         Example:
             >>> result = client.get_job_result(job_id)
-            >>> print(f"NPV: €{result.summary.investment_metrics.npv:,.0f}")
+            >>> print(f"NPV: €{result.investment_metrics.npv:,.0f}")
         """
         response = self._request_with_retry(
             "GET",
-            f"/api/v1/jobs/{job_id}",
+            f"/api/v1/jobs/{job_id}/result",
         )
 
         data = response.json()
 
-        if data.get("status") != "completed":
-            raise ApiError(f"Job is not completed (status: {data.get('status')})")
+        # Extract result from wrapper and flatten
+        result_data = {
+            "job_id": str(data.get("job_id")),
+            "status": data.get("status"),
+            **data.get("result", {}),
+        }
 
-        return InvestmentPlanningResponse(**data)
+        return InvestmentPlanningResponse(**result_data)
 
     def cancel_job(self, job_id: str) -> Job:
         """Cancel a running job.
