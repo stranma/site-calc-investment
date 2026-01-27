@@ -35,7 +35,10 @@ class InvestmentParameters(BaseModel):
     investment metrics.
     """
 
-    discount_rate: float = Field(..., gt=0, le=1, description="Discount rate for NPV (e.g., 0.05 = 5%)")
+    discount_rate: float = Field(..., ge=0, le=0.5, description="Annual discount rate for NPV (0-0.5, e.g., 0.05 = 5%)")
+    project_lifetime_years: int = Field(..., ge=1, le=50, description="Project lifetime in years")
+    investment_budget: Optional[float] = Field(None, ge=0, description="Maximum investment budget in EUR")
+    carbon_price: Optional[float] = Field(None, ge=0, description="Carbon price in EUR/tCO2")
     device_capital_costs: Optional[Dict[str, float]] = Field(
         None, description="CAPEX for each device (EUR), keyed by device name"
     )
@@ -50,8 +53,8 @@ class InvestmentParameters(BaseModel):
 class OptimizationConfig(BaseModel):
     """Optimization configuration."""
 
-    objective: Literal["maximize_npv", "maximize_revenue", "minimize_cost"] = Field(
-        "maximize_npv", description="Optimization objective"
+    objective: Literal["maximize_profit", "minimize_cost", "maximize_self_consumption"] = Field(
+        "maximize_profit", description="Optimization objective"
     )
     time_limit_seconds: int = Field(3600, gt=0, le=3600, description="Solver timeout (max 1 hour)")
     relax_binary_variables: bool = Field(

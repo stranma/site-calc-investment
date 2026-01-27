@@ -15,13 +15,14 @@ class Job(BaseModel):
     status: Literal["pending", "running", "completed", "failed", "cancelled"] = Field(
         ..., description="Job status"
     )
-    created_at: datetime = Field(..., description="Job creation timestamp")
+    created_at: Optional[datetime] = Field(None, description="Job creation timestamp")
     started_at: Optional[datetime] = Field(None, description="Job start timestamp")
     completed_at: Optional[datetime] = Field(None, description="Job completion timestamp")
     failed_at: Optional[datetime] = Field(None, description="Job failure timestamp")
     progress: Optional[int] = Field(None, ge=0, le=100, description="Progress percentage (optional)")
     message: Optional[str] = Field(None, description="Status message")
     error: Optional[Dict] = Field(None, description="Error details if failed")
+    estimated_completion_seconds: Optional[int] = Field(None, description="Estimated completion time")
 
 
 class DeviceSchedule(BaseModel):
@@ -41,8 +42,8 @@ class DeviceSchedule(BaseModel):
 class GridFlows(BaseModel):
     """Grid import/export flows for a site."""
 
-    import_flow: List[float] = Field(..., alias="import", description="MW imported from grid")
-    export: List[float] = Field(..., description="MW exported to grid")
+    import_flow: Optional[List[float]] = Field(None, alias="import", description="MW imported from grid")
+    export: Optional[List[float]] = Field(None, description="MW exported to grid")
 
     class Config:
         populate_by_name = True
@@ -54,7 +55,7 @@ class SiteResult(BaseModel):
     device_schedules: Dict[str, DeviceSchedule] = Field(
         ..., description="Device schedules keyed by device name"
     )
-    grid_flows: GridFlows = Field(..., description="Grid import/export flows")
+    grid_flows: Optional[Dict[str, List[float]]] = Field(None, description="Grid import/export flows")
 
 
 class InvestmentMetrics(BaseModel):
@@ -64,11 +65,11 @@ class InvestmentMetrics(BaseModel):
     including NPV, IRR, and payback period.
     """
 
-    total_revenue_period: float = Field(..., description="Total revenue over planning horizon (EUR)")
-    total_costs_period: float = Field(..., description="Total costs over planning horizon (EUR)")
-    npv: Optional[float] = Field(None, description="Net present value (EUR)")
+    npv: float = Field(..., description="Net present value (EUR)")
     irr: Optional[float] = Field(None, description="Internal rate of return (fraction, e.g., 0.12 = 12%)")
     payback_period_years: Optional[float] = Field(None, description="Simple payback period (years)")
+    total_revenue_10y: Optional[float] = Field(None, description="Total revenue over planning horizon (EUR)")
+    total_costs_10y: Optional[float] = Field(None, description="Total costs over planning horizon (EUR)")
     annual_revenue_by_year: Optional[List[float]] = Field(
         None, description="Annual revenue for each year"
     )
@@ -81,14 +82,12 @@ class Summary(BaseModel):
     """Optimization summary with investment metrics."""
 
     total_da_revenue: Optional[float] = Field(None, description="Day-ahead market revenue (EUR)")
-    total_cost: float = Field(..., description="Total operational costs (EUR)")
-    expected_profit: float = Field(..., description="Expected profit (revenue - cost) (EUR)")
+    total_ancillary_revenue: Optional[float] = Field(None, description="Total ANS capacity payments (EUR)")
+    total_cost: Optional[float] = Field(None, description="Total operational costs (EUR)")
+    expected_profit: Optional[float] = Field(None, description="Expected profit (revenue - cost) (EUR)")
     solver_status: str = Field(..., description="Solver status (optimal, timeout, infeasible, etc.)")
     solve_time_seconds: float = Field(..., ge=0, description="Solver execution time")
-    sites_count: int = Field(..., ge=1, description="Number of sites optimized")
-    investment_metrics: Optional[InvestmentMetrics] = Field(
-        None, description="Investment analysis metrics (if investment_parameters provided)"
-    )
+    sites_count: Optional[int] = Field(None, description="Number of sites optimized")
 
 
 class InvestmentPlanningResponse(BaseModel):
@@ -99,11 +98,14 @@ class InvestmentPlanningResponse(BaseModel):
 
     Example:
         >>> result = client.wait_for_completion(job_id)
-        >>> print(f"NPV: €{result.summary.investment_metrics.npv:,.0f}")
-        >>> print(f"IRR: {result.summary.investment_metrics.irr*100:.2f}%")
+        >>> print(f"NPV: €{result.investment_metrics.npv:,.0f}")
+        >>> print(f"IRR: {result.investment_metrics.irr*100:.2f}%")
     """
 
     job_id: str = Field(..., description="Job identifier")
     status: Literal["completed"] = "completed"
     sites: Dict[str, SiteResult] = Field(..., description="Results keyed by site_id")
     summary: Summary = Field(..., description="Optimization summary and metrics")
+    investment_metrics: Optional[InvestmentMetrics] = Field(
+        None, description="Investment analysis metrics (if investment_parameters provided)"
+    )
