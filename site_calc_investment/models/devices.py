@@ -16,6 +16,17 @@ class BatteryProperties(BaseModel):
     max_power: float = Field(..., gt=0, description="Power rating for charge/discharge (MW)")
     efficiency: float = Field(..., gt=0, le=1, description="Round-trip efficiency (0-1)")
     initial_soc: float = Field(0.5, ge=0, le=1, description="Initial state of charge (0-1)")
+    soc_anchor_interval_hours: Optional[int] = Field(
+        None,
+        gt=0,
+        description="If set, force SOC to target at regular intervals (hours). E.g., 4320 = every 6 months",
+    )
+    soc_anchor_target: float = Field(
+        0.5,
+        ge=0,
+        le=1,
+        description="Target SOC fraction at anchor points (0-1)",
+    )
 
 
 class CHPProperties(BaseModel):
