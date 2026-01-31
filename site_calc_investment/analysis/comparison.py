@@ -1,6 +1,6 @@
 """Scenario comparison utilities."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from site_calc_investment.models.responses import InvestmentPlanningResponse
 
@@ -8,7 +8,7 @@ from site_calc_investment.models.responses import InvestmentPlanningResponse
 def compare_scenarios(
     scenarios: List[InvestmentPlanningResponse],
     names: Optional[List[str]] = None,
-) -> dict:
+) -> Dict[str, Any]:
     """Compare multiple optimization scenarios.
 
     Extracts key metrics from each scenario for easy comparison.
@@ -38,7 +38,7 @@ def compare_scenarios(
     if len(names) != len(scenarios):
         raise ValueError(f"Number of names ({len(names)}) must match number of scenarios ({len(scenarios)})")
 
-    comparison = {
+    comparison: Dict[str, Any] = {
         "names": names,
         "total_revenue": [],
         "total_costs": [],
@@ -52,11 +52,18 @@ def compare_scenarios(
 
     for scenario in scenarios:
         summary = scenario.summary
-        inv_metrics = summary.investment_metrics
+        inv_metrics = scenario.investment_metrics
 
-        comparison["total_revenue"].append(
-            inv_metrics.total_revenue_period if inv_metrics else summary.expected_profit + summary.total_cost
-        )
+        # Calculate total revenue - use investment metrics if available
+        if inv_metrics and inv_metrics.total_revenue_10y is not None:
+            total_revenue = inv_metrics.total_revenue_10y
+        else:
+            # Fallback: calculate from profit + cost
+            profit = summary.expected_profit or 0.0
+            cost = summary.total_cost or 0.0
+            total_revenue = profit + cost
+
+        comparison["total_revenue"].append(total_revenue)
         comparison["total_costs"].append(summary.total_cost)
         comparison["profit"].append(summary.expected_profit)
         comparison["npv"].append(inv_metrics.npv if inv_metrics else None)

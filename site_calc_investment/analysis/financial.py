@@ -78,8 +78,8 @@ def _irr_newton_raphson(cash_flows: List[float], initial_guess: float, max_itera
 
     for _ in range(max_iterations):
         # Calculate NPV and derivative
-        npv = 0
-        npv_derivative = 0
+        npv: float = 0.0
+        npv_derivative: float = 0.0
 
         for t, cash_flow in enumerate(cash_flows):
             discount_factor = (1 + rate) ** t
@@ -126,7 +126,7 @@ def calculate_payback_period(cash_flows: List[float]) -> Optional[float]:
     if len(cash_flows) < 2:
         return None
 
-    cumulative = 0
+    cumulative: float = 0.0
     for year, cash_flow in enumerate(cash_flows):
         cumulative += cash_flow
 

@@ -117,7 +117,8 @@ class InvestmentPlanningRequest(BaseModel):
         None, description="Optional financial parameters for ROI calculation"
     )
     optimization_config: OptimizationConfig = Field(
-        default_factory=OptimizationConfig, description="Optimization configuration"
+        default=OptimizationConfig(),  # type: ignore[call-arg]
+        description="Optimization configuration",
     )
 
     def model_dump_for_api(self) -> dict:

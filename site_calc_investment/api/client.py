@@ -1,7 +1,7 @@
 """Investment Client for Site-Calc API."""
 
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
@@ -12,6 +12,7 @@ from site_calc_investment.exceptions import (
     JobNotFoundError,
     LimitExceededError,
     OptimizationError,
+    SiteCalcError,
     TimeoutError,
     ValidationError,
 )
@@ -80,7 +81,12 @@ class InvestmentClient:
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         """Context manager exit."""
         self.close()
 
@@ -136,7 +142,7 @@ class InvestmentClient:
         self,
         method: str,
         path: str,
-        **kwargs,
+        **kwargs: Any,
     ) -> httpx.Response:
         """Make HTTP request with retry logic.
 
@@ -151,7 +157,7 @@ class InvestmentClient:
         Raises:
             Various exceptions based on response status
         """
-        last_exception = None
+        last_exception: SiteCalcError | None = None
 
         for attempt in range(self.max_retries):
             try:
@@ -303,7 +309,7 @@ class InvestmentClient:
 
         return Job(**response.json())
 
-    def cancel_all_jobs(self) -> dict:
+    def cancel_all_jobs(self) -> dict[str, object]:
         """Cancel all pending or running jobs.
 
         Cancels all jobs that are currently pending or running for the
@@ -328,7 +334,8 @@ class InvestmentClient:
             "/api/v1/jobs",
         )
 
-        return response.json()
+        result: dict[str, object] = response.json()
+        return result
 
     def wait_for_completion(
         self,
@@ -369,7 +376,7 @@ class InvestmentClient:
             if job.status == "completed":
                 return self.get_job_result(job_id)
             elif job.status == "failed":
-                error_msg = job.error.get("message") if job.error else "Unknown error"
+                error_msg: str = str(job.error.get("message", "Unknown error")) if job.error else "Unknown error"
                 error_code = job.error.get("code") if job.error else None
                 error_details = job.error.get("details") if job.error else None
                 raise OptimizationError(error_msg, error_code, error_details)
