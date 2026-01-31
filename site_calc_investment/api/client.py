@@ -133,6 +133,7 @@ class InvestmentClient:
         Raises:
             Appropriate exception based on status code and error details
         """
+        details: dict[str, Any] | None = None
         try:
             error_data = response.json()
             # Handle FastAPI error format: {"detail": ...}
@@ -142,7 +143,7 @@ class InvestmentClient:
                     # Pydantic validation error: [{"msg": ..., "loc": [...], ...}]
                     messages = [item.get("msg", str(item)) for item in detail]
                     message = "; ".join(messages)
-                    details = detail
+                    details = {"validation_errors": detail}
                 else:
                     # Simple detail string
                     message = str(detail)
@@ -167,8 +168,8 @@ class InvestmentClient:
             if code == "forbidden_feature":
                 raise ForbiddenFeatureError(message, code, details)
             elif code == "limit_exceeded" or code == "invalid_resolution":
-                requested = details.get("requested") if details else None
-                max_allowed = details.get("max_allowed") if details else None
+                requested = details.get("requested") if details and isinstance(details, dict) else None
+                max_allowed = details.get("max_allowed") if details and isinstance(details, dict) else None
                 raise LimitExceededError(message, requested, max_allowed, code, details)
             else:
                 raise ApiError(message, code, details)
