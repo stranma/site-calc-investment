@@ -302,6 +302,33 @@ class InvestmentClient:
 
         return Job(**response.json())
 
+    def cancel_all_jobs(self) -> dict:
+        """Cancel all pending or running jobs.
+
+        Cancels all jobs that are currently pending or running for the
+        authenticated user. Useful for cleanup when shutting down or
+        when jobs are no longer needed.
+
+        Returns:
+            Dictionary with:
+                - cancelled_count: Number of jobs cancelled
+                - cancelled_jobs: List of cancelled job IDs
+                - message: Status message
+
+        Raises:
+            AuthenticationError: If API key is invalid
+
+        Example:
+            >>> result = client.cancel_all_jobs()
+            >>> print(f"Cancelled {result['cancelled_count']} jobs")
+        """
+        response = self._request_with_retry(
+            "DELETE",
+            "/api/v1/jobs",
+        )
+
+        return response.json()
+
     def wait_for_completion(
         self,
         job_id: str,
