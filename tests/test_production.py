@@ -179,7 +179,7 @@ class TestProductionSmallTask:
         # Verify result
         assert result.status == "completed"
         assert result.summary is not None
-        assert result.summary.solver_status == "optimal"
+        assert result.summary.solver_status.lower() == "optimal"
         assert "prod_test_site_small" in result.sites
 
     def test_job_status_polling(
