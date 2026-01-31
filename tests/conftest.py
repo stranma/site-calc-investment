@@ -112,14 +112,17 @@ def simple_site(battery_10mw, grid_import, grid_export) -> Site:
 def investment_params() -> InvestmentParameters:
     """Investment parameters for testing."""
     return InvestmentParameters(
-        discount_rate=0.05, device_capital_costs={"Battery1": 2_000_000}, device_annual_opex={"Battery1": 20_000}
+        discount_rate=0.05,
+        project_lifetime_years=10,
+        device_capital_costs={"Battery1": 2_000_000},
+        device_annual_opex={"Battery1": 20_000},
     )
 
 
 @pytest.fixture
 def optimization_config() -> OptimizationConfig:
     """Optimization configuration for testing."""
-    return OptimizationConfig(objective="maximize_npv", time_limit_seconds=3600, relax_binary_variables=True)
+    return OptimizationConfig(objective="maximize_profit", time_limit_seconds=3600, relax_binary_variables=True)
 
 
 @pytest.fixture

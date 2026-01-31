@@ -46,10 +46,14 @@ class TestInvestmentParameters:
     def test_investment_params_creation(self):
         """Test basic investment parameters creation."""
         params = InvestmentParameters(
-            discount_rate=0.05, device_capital_costs={"Battery1": 500000}, device_annual_opex={"Battery1": 5000}
+            discount_rate=0.05,
+            project_lifetime_years=10,
+            device_capital_costs={"Battery1": 500000},
+            device_annual_opex={"Battery1": 5000},
         )
 
         assert params.discount_rate == 0.05
+        assert params.project_lifetime_years == 10
         assert params.device_capital_costs["Battery1"] == 500000
         assert params.device_annual_opex["Battery1"] == 5000
 
@@ -57,6 +61,7 @@ class TestInvestmentParameters:
         """Test price escalation rate."""
         params = InvestmentParameters(
             discount_rate=0.05,
+            project_lifetime_years=10,
             price_escalation_rate=0.02,  # 2% annual
         )
 
@@ -64,7 +69,7 @@ class TestInvestmentParameters:
 
     def test_investment_params_optional_fields(self):
         """Test that CAPEX and OPEX are optional."""
-        params = InvestmentParameters(discount_rate=0.05)
+        params = InvestmentParameters(discount_rate=0.05, project_lifetime_years=10)
 
         assert params.device_capital_costs is None
         assert params.device_annual_opex is None
@@ -77,18 +82,18 @@ class TestOptimizationConfig:
         """Test default optimization config."""
         config = OptimizationConfig()
 
-        assert config.objective == "maximize_npv"
+        assert config.objective == "maximize_profit"
         assert config.time_limit_seconds == 3600
         assert config.relax_binary_variables is True
 
     def test_optimization_config_objectives(self):
         """Test different objectives."""
-        config1 = OptimizationConfig(objective="maximize_npv")
-        config2 = OptimizationConfig(objective="maximize_revenue")
+        config1 = OptimizationConfig(objective="maximize_profit")
+        config2 = OptimizationConfig(objective="maximize_self_consumption")
         config3 = OptimizationConfig(objective="minimize_cost")
 
-        assert config1.objective == "maximize_npv"
-        assert config2.objective == "maximize_revenue"
+        assert config1.objective == "maximize_profit"
+        assert config2.objective == "maximize_self_consumption"
         assert config3.objective == "minimize_cost"
 
     def test_optimization_config_timeout_validation(self):
@@ -173,7 +178,7 @@ class TestInvestmentPlanningRequest:
         assert len(request.sites) == 1
         assert request.timespan.intervals == 87600
         assert request.investment_parameters.discount_rate == 0.05
-        assert request.optimization_config.objective == "maximize_npv"
+        assert request.optimization_config.objective == "maximize_profit"
 
     def test_investment_planning_request_optional_params(self, simple_site, prague_tz):
         """Test request with optional parameters."""
@@ -185,7 +190,7 @@ class TestInvestmentPlanningRequest:
 
         assert request.investment_parameters is None
         # Config should have defaults
-        assert request.optimization_config.objective == "maximize_npv"
+        assert request.optimization_config.objective == "maximize_profit"
 
     def test_investment_planning_request_site_limit(self, simple_site, prague_tz):
         """Test maximum sites limit (50)."""
