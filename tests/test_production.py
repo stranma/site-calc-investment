@@ -191,7 +191,7 @@ class TestProductionSmallTask:
         """Test job status polling returns valid status values."""
         timespan = TimeSpanInvestment(
             start=datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz),
-            intervals=24,  # Very small: 1 day
+            intervals=168,  # 1 week - matches small_site price profile
             resolution=Resolution.HOUR_1,
         )
         request = InvestmentPlanningRequest(sites=[small_site], timespan=timespan)
@@ -274,7 +274,7 @@ class TestProductionCancelAllJobs:
         """Test that cancel_all_jobs cancels multiple pending jobs."""
         timespan = TimeSpanInvestment(
             start=datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz),
-            intervals=24,
+            intervals=168,  # 1 week - matches small_site price profile
             resolution=Resolution.HOUR_1,
         )
         request = InvestmentPlanningRequest(sites=[small_site], timespan=timespan)
