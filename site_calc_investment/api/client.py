@@ -1,10 +1,12 @@
 """Investment Client for Site-Calc API."""
 
 import time
+import warnings
 from typing import Any, Optional
 
 import httpx
 
+from site_calc_investment import __version__
 from site_calc_investment.exceptions import (
     ApiError,
     AuthenticationError,
@@ -76,6 +78,7 @@ class InvestmentClient:
             },
             timeout=timeout,
         )
+        self._version_checked = False
 
     def __enter__(self) -> "InvestmentClient":
         """Context manager entry."""
@@ -93,6 +96,33 @@ class InvestmentClient:
     def close(self) -> None:
         """Close the HTTP client."""
         self._client.close()
+
+    def _validate_server_version(self) -> None:
+        """Check server API version compatibility and warn if mismatched.
+
+        Compares client MAJOR.MINOR with server api_version.
+        Only runs once per client instance.
+        """
+        if self._version_checked:
+            return
+
+        self._version_checked = True
+        client_api_version = ".".join(__version__.split(".")[:2])
+
+        try:
+            response = self._client.get("/health")
+            if response.status_code == 200:
+                health = response.json()
+                server_api_version = health.get("api_version")
+                if server_api_version and client_api_version != server_api_version:
+                    warnings.warn(
+                        f"Client version {__version__} (API {client_api_version}) may not be compatible "
+                        f"with server API {server_api_version}. Consider upgrading.",
+                        UserWarning,
+                        stacklevel=3,
+                    )
+        except Exception:
+            pass
 
     def _handle_error(self, response: httpx.Response) -> None:
         """Handle API error responses.
@@ -174,6 +204,7 @@ class InvestmentClient:
         Raises:
             Various exceptions based on response status
         """
+        self._validate_server_version()
         last_exception: SiteCalcError | None = None
 
         for attempt in range(self.max_retries):
