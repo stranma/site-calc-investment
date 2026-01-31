@@ -330,10 +330,12 @@ class TestProductionErrorHandling:
 
     def test_nonexistent_job_raises_not_found(self, production_client: InvestmentClient) -> None:
         """Test that querying nonexistent job raises JobNotFoundError."""
+        # Use valid UUID format to avoid 422 validation error
         with pytest.raises(JobNotFoundError):
-            production_client.get_job_status("nonexistent_job_id_12345")
+            production_client.get_job_status("00000000-0000-0000-0000-000000000000")
 
     def test_cancel_nonexistent_job_raises_not_found(self, production_client: InvestmentClient) -> None:
         """Test that cancelling nonexistent job raises JobNotFoundError."""
+        # Use valid UUID format to avoid 422 validation error
         with pytest.raises(JobNotFoundError):
-            production_client.cancel_job("nonexistent_job_id_12345")
+            production_client.cancel_job("00000000-0000-0000-0000-000000000000")

@@ -105,10 +105,25 @@ class InvestmentClient:
         """
         try:
             error_data = response.json()
-            error = error_data.get("error", {})
-            code = error.get("code")
-            message = error.get("message", "Unknown error")
-            details = error.get("details")
+            # Handle FastAPI error format: {"detail": ...}
+            if "detail" in error_data:
+                detail = error_data["detail"]
+                if isinstance(detail, list):
+                    # Pydantic validation error: [{"msg": ..., "loc": [...], ...}]
+                    messages = [item.get("msg", str(item)) for item in detail]
+                    message = "; ".join(messages)
+                    details = detail
+                else:
+                    # Simple detail string
+                    message = str(detail)
+                    details = None
+                code = None
+            else:
+                # Handle custom error format: {"error": {"code": ..., "message": ...}}
+                error = error_data.get("error", {})
+                code = error.get("code")
+                message = error.get("message", "Unknown error")
+                details = error.get("details")
         except Exception:
             message = response.text or f"HTTP {response.status_code}"
             code = None
@@ -128,11 +143,13 @@ class InvestmentClient:
             else:
                 raise ApiError(message, code, details)
         elif response.status_code == 404:
-            if "job" in message.lower():
+            if "job" in message.lower() or "not found" in message.lower():
                 raise JobNotFoundError(message, code, details)
             raise ApiError(message, code, details)
         elif response.status_code == 408 or response.status_code == 504:
             raise TimeoutError(message, code=code)
+        elif response.status_code == 422:
+            raise ValidationError(message, code, details)
         elif response.status_code >= 500:
             raise ApiError(f"Server error: {message}", code, details)
         else:
