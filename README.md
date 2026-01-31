@@ -88,6 +88,7 @@ print(f"Payback: {metrics.payback_period_years:.1f} years")
 - ✅ Multi-site optimization
 - ✅ Type-safe Pydantic models
 - ✅ Automatic retry and error handling
+- ✅ Job management (cancel single or all jobs)
 
 ## Capabilities
 
@@ -110,6 +111,30 @@ print(f"Payback: {metrics.payback_period_years:.1f} years")
 - Electricity Import/Export (market interface)
 - Gas Import (market interface)
 - Heat Export (market interface)
+
+## Job Management
+
+The client provides methods for managing optimization jobs:
+
+```python
+# Create a job
+job = client.create_planning_job(request)
+print(f"Job ID: {job.job_id}")
+
+# Check job status
+status = client.get_job_status(job.job_id)
+print(f"Status: {status.status}, Progress: {status.progress}%")
+
+# Wait for completion
+result = client.wait_for_completion(job.job_id, poll_interval=30, timeout=7200)
+
+# Cancel a single job
+cancelled = client.cancel_job(job.job_id)
+
+# Cancel all pending/running jobs (bulk cancel)
+result = client.cancel_all_jobs()
+print(f"Cancelled {result['cancelled_count']} jobs")
+```
 
 ## Financial Analysis
 

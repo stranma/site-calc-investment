@@ -280,6 +280,74 @@ class TestCancelJob:
         assert job.status == "cancelled"
 
 
+class TestCancelAllJobs:
+    """Tests for cancel_all_jobs method (bulk cancel)."""
+
+    @patch('httpx.Client.request')
+    def test_cancel_all_jobs_success(self, mock_request):
+        """Test successful bulk job cancellation."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "cancelled_count": 3,
+            "cancelled_jobs": [
+                "job_id_1",
+                "job_id_2",
+                "job_id_3"
+            ],
+            "message": "Cancelled 3 jobs"
+        }
+        mock_request.return_value = mock_response
+
+        client = InvestmentClient("https://api.example.com", "inv_test")
+        result = client.cancel_all_jobs()
+
+        assert result["cancelled_count"] == 3
+        assert len(result["cancelled_jobs"]) == 3
+        assert "job_id_1" in result["cancelled_jobs"]
+        mock_request.assert_called_once()
+        # Verify it's a DELETE request to /api/v1/jobs
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "DELETE"
+        assert call_args[0][1] == "/api/v1/jobs"
+
+    @patch('httpx.Client.request')
+    def test_cancel_all_jobs_no_jobs(self, mock_request):
+        """Test bulk cancel when no jobs to cancel."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "cancelled_count": 0,
+            "cancelled_jobs": [],
+            "message": "No pending or running jobs to cancel"
+        }
+        mock_request.return_value = mock_response
+
+        client = InvestmentClient("https://api.example.com", "inv_test")
+        result = client.cancel_all_jobs()
+
+        assert result["cancelled_count"] == 0
+        assert result["cancelled_jobs"] == []
+
+    @patch('httpx.Client.request')
+    def test_cancel_all_jobs_authentication_error(self, mock_request):
+        """Test bulk cancel with invalid API key."""
+        mock_response = Mock()
+        mock_response.status_code = 401
+        mock_response.json.return_value = {
+            "error": {
+                "code": "invalid_api_key",
+                "message": "Invalid or expired API key"
+            }
+        }
+        mock_request.return_value = mock_response
+
+        client = InvestmentClient("https://api.example.com", "inv_test")
+
+        with pytest.raises(AuthenticationError, match="Invalid"):
+            client.cancel_all_jobs()
+
+
 class TestWaitForCompletion:
     """Tests for wait_for_completion method."""
 
