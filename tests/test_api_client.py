@@ -201,11 +201,11 @@ class TestGetJobResult:
     """Tests for get_job_result method."""
 
     @patch("httpx.Client.request")
-    def test_get_job_result_success(self, mock_request, mock_job_completed_response):
+    def test_get_job_result_success(self, mock_request, mock_job_result_api_response):
         """Test getting completed job result."""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = mock_job_completed_response
+        mock_response.json.return_value = mock_job_result_api_response
         mock_request.return_value = mock_response
 
         client = InvestmentClient("https://api.example.com", "inv_test")
@@ -213,20 +213,29 @@ class TestGetJobResult:
 
         assert isinstance(result, InvestmentPlanningResponse)
         assert result.status == "completed"
-        assert result.summary.investment_metrics.npv == 1250000.0
-        assert result.summary.investment_metrics.irr == 0.12
+        assert result.investment_metrics is not None
+        assert result.investment_metrics.npv == 1250000.0
+        assert result.investment_metrics.irr == 0.12
 
     @patch("httpx.Client.request")
-    def test_get_job_result_not_completed(self, mock_request, mock_job_running_response):
-        """Test getting result for non-completed job."""
+    def test_get_job_result_not_completed(self, mock_request):
+        """Test getting result for non-completed job.
+
+        The API returns an error when requesting results for a job that isn't completed.
+        """
         mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_job_running_response
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            "error": {
+                "code": "job_not_completed",
+                "message": "Job is not completed yet. Current status: running",
+            }
+        }
         mock_request.return_value = mock_response
 
         client = InvestmentClient("https://api.example.com", "inv_test")
 
-        with pytest.raises(Exception, match="not completed"):
+        with pytest.raises(ValidationError, match="not completed"):
             client.get_job_result("test_job_123")
 
 
@@ -318,7 +327,7 @@ class TestWaitForCompletion:
     @patch("httpx.Client.request")
     @patch("time.sleep")  # Mock sleep to speed up test
     def test_wait_for_completion_success(
-        self, mock_sleep, mock_request, mock_job_running_response, mock_job_completed_response
+        self, mock_sleep, mock_request, mock_job_running_response, mock_job_result_api_response
     ):
         """Test waiting for job completion."""
         # First call: get_job_status returns "running"
@@ -338,10 +347,10 @@ class TestWaitForCompletion:
         mock_response_status_completed.status_code = 200
         mock_response_status_completed.json.return_value = mock_job_status_completed
 
-        # Third call returns full results
+        # Third call returns full results (API response with 'result' wrapper)
         mock_response_full_result = Mock()
         mock_response_full_result.status_code = 200
-        mock_response_full_result.json.return_value = mock_job_completed_response
+        mock_response_full_result.json.return_value = mock_job_result_api_response
 
         mock_request.side_effect = [mock_response_running, mock_response_status_completed, mock_response_full_result]
 

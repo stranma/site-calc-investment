@@ -147,14 +147,53 @@ def mock_job_running_response():
 
 
 @pytest.fixture
-def mock_job_completed_response():
-    """Mock job completed response with results."""
+def mock_job_result_api_response():
+    """Mock API response from /api/v1/jobs/{job_id}/result endpoint.
+
+    This represents the raw API response which wraps the result data in a 'result' field.
+    Used for testing the API client.
+    """
     return {
         "job_id": "test_job_123",
         "status": "completed",
-        "created_at": "2025-01-01T10:00:00+01:00",
-        "started_at": "2025-01-01T10:00:05+01:00",
-        "completed_at": "2025-01-01T10:15:30+01:00",
+        "result": {
+            "sites": {
+                "test_site": {
+                    "device_schedules": {"Battery1": {"flows": {"electricity": [2.0] * 100}, "soc": [0.5] * 100}},
+                    "grid_flows": {"import": [0.0] * 100, "export": [2.0] * 100},
+                }
+            },
+            "summary": {
+                "total_da_revenue": 500000.0,
+                "total_cost": 200000.0,
+                "expected_profit": 300000.0,
+                "solver_status": "optimal",
+                "solve_time_seconds": 127.3,
+                "sites_count": 1,
+            },
+            "investment_metrics": {
+                "total_revenue_10y": 5000000.0,
+                "total_costs_10y": 2000000.0,
+                "npv": 1250000.0,
+                "irr": 0.12,
+                "payback_period_years": 6.2,
+                "annual_revenue_by_year": [450000.0] * 10,
+                "annual_costs_by_year": [180000.0] * 10,
+            },
+        },
+    }
+
+
+@pytest.fixture
+def mock_job_completed_response():
+    """Mock job completed response for direct InvestmentPlanningResponse creation.
+
+    This is the flattened format suitable for directly creating model instances.
+    Used for testing scenario comparison and other model-level tests.
+    """
+    return {
+        "job_id": "test_job_123",
+        "status": "completed",
         "sites": {
             "test_site": {
                 "device_schedules": {"Battery1": {"flows": {"electricity": [2.0] * 100}, "soc": [0.5] * 100}},
@@ -168,15 +207,15 @@ def mock_job_completed_response():
             "solver_status": "optimal",
             "solve_time_seconds": 127.3,
             "sites_count": 1,
-            "investment_metrics": {
-                "total_revenue_period": 5000000.0,
-                "total_costs_period": 2000000.0,
-                "npv": 1250000.0,
-                "irr": 0.12,
-                "payback_period_years": 6.2,
-                "annual_revenue_by_year": [450000.0] * 10,
-                "annual_costs_by_year": [180000.0] * 10,
-            },
+        },
+        "investment_metrics": {
+            "total_revenue_10y": 5000000.0,
+            "total_costs_10y": 2000000.0,
+            "npv": 1250000.0,
+            "irr": 0.12,
+            "payback_period_years": 6.2,
+            "annual_revenue_by_year": [450000.0] * 10,
+            "annual_costs_by_year": [180000.0] * 10,
         },
     }
 

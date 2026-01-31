@@ -36,6 +36,7 @@ dev = [
     "ruff>=0.1",
     "mypy>=1.0",
     "pandas>=2.0",  # For scenario comparison
+    "tzdata>=2024.1",  # Timezone data for Windows
 ]
 
 [project.urls]

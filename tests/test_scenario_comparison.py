@@ -1,5 +1,7 @@
 """Tests for scenario comparison utilities."""
 
+import copy
+
 import pytest
 
 from site_calc_investment.analysis.comparison import compare_scenarios, print_comparison
@@ -12,12 +14,12 @@ class TestCompareScenarios:
     def test_compare_scenarios_basic(self, mock_job_completed_response):
         """Test basic scenario comparison with 2 scenarios."""
         # Create two mock results with different NPVs
-        result1_data = mock_job_completed_response.copy()
+        result1_data = copy.deepcopy(mock_job_completed_response)
         result1 = InvestmentPlanningResponse(**result1_data)
 
-        result2_data = mock_job_completed_response.copy()
-        result2_data["summary"]["investment_metrics"]["npv"] = 1500000.0
-        result2_data["summary"]["investment_metrics"]["irr"] = 0.14
+        result2_data = copy.deepcopy(mock_job_completed_response)
+        result2_data["investment_metrics"]["npv"] = 1500000.0
+        result2_data["investment_metrics"]["irr"] = 0.14
         result2 = InvestmentPlanningResponse(**result2_data)
 
         comparison = compare_scenarios([result1, result2], names=["Scenario A", "Scenario B"])
@@ -107,9 +109,9 @@ class TestCompareScenarios:
 
         comparison = compare_scenarios([result])
 
-        # From mock response
-        inv_metrics = mock_job_completed_response["summary"]["investment_metrics"]
-        assert comparison["total_revenue"][0] == inv_metrics["total_revenue_period"]
+        # From mock response (investment_metrics is at top level)
+        inv_metrics = mock_job_completed_response["investment_metrics"]
+        assert comparison["total_revenue"][0] == inv_metrics["total_revenue_10y"]
         assert comparison["total_costs"][0] == mock_job_completed_response["summary"]["total_cost"]
         assert comparison["profit"][0] == mock_job_completed_response["summary"]["expected_profit"]
 
@@ -125,8 +127,8 @@ class TestCompareScenarios:
     def test_compare_scenarios_none_metrics(self, mock_job_completed_response):
         """Test handling of None investment metrics."""
         # Create response without investment metrics
-        result_data = mock_job_completed_response.copy()
-        result_data["summary"]["investment_metrics"] = None
+        result_data = copy.deepcopy(mock_job_completed_response)
+        result_data["investment_metrics"] = None
         result = InvestmentPlanningResponse(**result_data)
 
         comparison = compare_scenarios([result])
@@ -146,21 +148,21 @@ class TestCompareScenarios:
     def test_compare_scenarios_multiple_varied(self, mock_job_completed_response):
         """Test comparison with multiple scenarios with varied metrics."""
         # Scenario 1: Low NPV
-        result1_data = mock_job_completed_response.copy()
-        result1_data["summary"]["investment_metrics"]["npv"] = 500000.0
-        result1_data["summary"]["investment_metrics"]["irr"] = 0.08
+        result1_data = copy.deepcopy(mock_job_completed_response)
+        result1_data["investment_metrics"]["npv"] = 500000.0
+        result1_data["investment_metrics"]["irr"] = 0.08
         result1 = InvestmentPlanningResponse(**result1_data)
 
         # Scenario 2: Medium NPV
-        result2_data = mock_job_completed_response.copy()
-        result2_data["summary"]["investment_metrics"]["npv"] = 1250000.0
-        result2_data["summary"]["investment_metrics"]["irr"] = 0.12
+        result2_data = copy.deepcopy(mock_job_completed_response)
+        result2_data["investment_metrics"]["npv"] = 1250000.0
+        result2_data["investment_metrics"]["irr"] = 0.12
         result2 = InvestmentPlanningResponse(**result2_data)
 
         # Scenario 3: High NPV
-        result3_data = mock_job_completed_response.copy()
-        result3_data["summary"]["investment_metrics"]["npv"] = 2000000.0
-        result3_data["summary"]["investment_metrics"]["irr"] = 0.16
+        result3_data = copy.deepcopy(mock_job_completed_response)
+        result3_data["investment_metrics"]["npv"] = 2000000.0
+        result3_data["investment_metrics"]["irr"] = 0.16
         result3 = InvestmentPlanningResponse(**result3_data)
 
         comparison = compare_scenarios([result1, result2, result3], names=["Small", "Medium", "Large"])
@@ -182,8 +184,8 @@ class TestPrintComparison:
     def test_print_comparison_output(self, mock_job_completed_response, capsys):
         """Test print_comparison produces correct output."""
         result1 = InvestmentPlanningResponse(**mock_job_completed_response)
-        result2_data = mock_job_completed_response.copy()
-        result2_data["summary"]["investment_metrics"]["npv"] = 1500000.0
+        result2_data = copy.deepcopy(mock_job_completed_response)
+        result2_data["investment_metrics"]["npv"] = 1500000.0
         result2 = InvestmentPlanningResponse(**result2_data)
 
         comparison = compare_scenarios([result1, result2], names=["Scenario A", "Scenario B"])
@@ -238,16 +240,16 @@ class TestPrintComparison:
     def test_print_comparison_best_scenario(self, mock_job_completed_response, capsys):
         """Test best scenario identification."""
         # Create 3 scenarios with different NPVs
-        result1_data = mock_job_completed_response.copy()
-        result1_data["summary"]["investment_metrics"]["npv"] = 1000000.0
+        result1_data = copy.deepcopy(mock_job_completed_response)
+        result1_data["investment_metrics"]["npv"] = 1000000.0
         result1 = InvestmentPlanningResponse(**result1_data)
 
-        result2_data = mock_job_completed_response.copy()
-        result2_data["summary"]["investment_metrics"]["npv"] = 2000000.0
+        result2_data = copy.deepcopy(mock_job_completed_response)
+        result2_data["investment_metrics"]["npv"] = 2000000.0
         result2 = InvestmentPlanningResponse(**result2_data)
 
-        result3_data = mock_job_completed_response.copy()
-        result3_data["summary"]["investment_metrics"]["npv"] = 1500000.0
+        result3_data = copy.deepcopy(mock_job_completed_response)
+        result3_data["investment_metrics"]["npv"] = 1500000.0
         result3 = InvestmentPlanningResponse(**result3_data)
 
         comparison = compare_scenarios([result1, result2, result3], names=["Small", "Large", "Medium"])
@@ -262,8 +264,8 @@ class TestPrintComparison:
 
     def test_print_comparison_no_investment_metrics(self, mock_job_completed_response, capsys):
         """Test print_comparison with no investment metrics."""
-        result_data = mock_job_completed_response.copy()
-        result_data["summary"]["investment_metrics"] = None
+        result_data = copy.deepcopy(mock_job_completed_response)
+        result_data["investment_metrics"] = None
         result = InvestmentPlanningResponse(**result_data)
 
         comparison = compare_scenarios([result])
@@ -307,8 +309,8 @@ class TestPrintComparison:
         result1 = InvestmentPlanningResponse(**mock_job_completed_response)
 
         # Scenario 2: No investment metrics
-        result2_data = mock_job_completed_response.copy()
-        result2_data["summary"]["investment_metrics"] = None
+        result2_data = copy.deepcopy(mock_job_completed_response)
+        result2_data["investment_metrics"] = None
         result2 = InvestmentPlanningResponse(**result2_data)
 
         comparison = compare_scenarios([result1, result2], names=["With Metrics", "Without Metrics"])
@@ -344,24 +346,24 @@ class TestComparisonIntegration:
     def test_full_comparison_workflow(self, mock_job_completed_response, capsys):
         """Test complete comparison workflow from results to output."""
         # Create 3 different battery sizes
-        small_data = mock_job_completed_response.copy()
-        small_data["summary"]["investment_metrics"]["npv"] = 800000.0
-        small_data["summary"]["investment_metrics"]["irr"] = 0.10
-        small_data["summary"]["investment_metrics"]["payback_period_years"] = 7.5
+        small_data = copy.deepcopy(mock_job_completed_response)
+        small_data["investment_metrics"]["npv"] = 800000.0
+        small_data["investment_metrics"]["irr"] = 0.10
+        small_data["investment_metrics"]["payback_period_years"] = 7.5
         small_data["summary"]["solve_time_seconds"] = 45.2
         small = InvestmentPlanningResponse(**small_data)
 
-        medium_data = mock_job_completed_response.copy()
-        medium_data["summary"]["investment_metrics"]["npv"] = 1250000.0
-        medium_data["summary"]["investment_metrics"]["irr"] = 0.12
-        medium_data["summary"]["investment_metrics"]["payback_period_years"] = 6.2
+        medium_data = copy.deepcopy(mock_job_completed_response)
+        medium_data["investment_metrics"]["npv"] = 1250000.0
+        medium_data["investment_metrics"]["irr"] = 0.12
+        medium_data["investment_metrics"]["payback_period_years"] = 6.2
         medium_data["summary"]["solve_time_seconds"] = 127.3
         medium = InvestmentPlanningResponse(**medium_data)
 
-        large_data = mock_job_completed_response.copy()
-        large_data["summary"]["investment_metrics"]["npv"] = 1100000.0
-        large_data["summary"]["investment_metrics"]["irr"] = 0.09
-        large_data["summary"]["investment_metrics"]["payback_period_years"] = 8.1
+        large_data = copy.deepcopy(mock_job_completed_response)
+        large_data["investment_metrics"]["npv"] = 1100000.0
+        large_data["investment_metrics"]["irr"] = 0.09
+        large_data["investment_metrics"]["payback_period_years"] = 8.1
         large_data["summary"]["solve_time_seconds"] = 234.7
         large = InvestmentPlanningResponse(**large_data)
 
