@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import List
+from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -238,3 +239,35 @@ def mock_job_failed_response():
             "details": {"conflicting_constraints": ["Battery SOC constraints"]},
         },
     }
+
+
+@pytest.fixture
+def mock_health_response():
+    """Mock health endpoint response."""
+    mock = Mock()
+    mock.status_code = 200
+    mock.json.return_value = {
+        "status": "healthy",
+        "version": "1.0.0",
+        "api_version": "1.0",
+        "environment": "test",
+    }
+    return mock
+
+
+@pytest.fixture(autouse=True)
+def skip_version_check(monkeypatch):
+    """Skip server version validation in tests.
+
+    This avoids needing to mock the /health endpoint in every test.
+    The version validation logic should be tested separately.
+    """
+    from site_calc_investment.api.client import InvestmentClient
+
+    original_init = InvestmentClient.__init__
+
+    def patched_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self._version_checked = True
+
+    monkeypatch.setattr(InvestmentClient, "__init__", patched_init)

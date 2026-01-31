@@ -1,10 +1,12 @@
 """Investment Client for Site-Calc API."""
 
 import time
+import warnings
 from typing import Any, Optional
 
 import httpx
 
+from site_calc_investment import __version__
 from site_calc_investment.exceptions import (
     ApiError,
     AuthenticationError,
@@ -76,6 +78,7 @@ class InvestmentClient:
             },
             timeout=timeout,
         )
+        self._version_checked = False
 
     def __enter__(self) -> "InvestmentClient":
         """Context manager entry."""
@@ -94,6 +97,33 @@ class InvestmentClient:
         """Close the HTTP client."""
         self._client.close()
 
+    def _validate_server_version(self) -> None:
+        """Check server API version compatibility and warn if mismatched.
+
+        Compares client MAJOR.MINOR with server api_version.
+        Only runs once per client instance.
+        """
+        if self._version_checked:
+            return
+
+        self._version_checked = True
+        client_api_version = ".".join(__version__.split(".")[:2])
+
+        try:
+            response = self._client.get("/health")
+            if response.status_code == 200:
+                health = response.json()
+                server_api_version = health.get("api_version")
+                if server_api_version and client_api_version != server_api_version:
+                    warnings.warn(
+                        f"Client version {__version__} (API {client_api_version}) may not be compatible "
+                        f"with server API {server_api_version}. Consider upgrading.",
+                        UserWarning,
+                        stacklevel=3,
+                    )
+        except Exception:
+            pass
+
     def _handle_error(self, response: httpx.Response) -> None:
         """Handle API error responses.
 
@@ -103,6 +133,7 @@ class InvestmentClient:
         Raises:
             Appropriate exception based on status code and error details
         """
+        details: dict[str, Any] | None = None
         try:
             error_data = response.json()
             # Handle FastAPI error format: {"detail": ...}
@@ -112,7 +143,7 @@ class InvestmentClient:
                     # Pydantic validation error: [{"msg": ..., "loc": [...], ...}]
                     messages = [item.get("msg", str(item)) for item in detail]
                     message = "; ".join(messages)
-                    details = detail
+                    details = {"validation_errors": detail}
                 else:
                     # Simple detail string
                     message = str(detail)
@@ -137,8 +168,8 @@ class InvestmentClient:
             if code == "forbidden_feature":
                 raise ForbiddenFeatureError(message, code, details)
             elif code == "limit_exceeded" or code == "invalid_resolution":
-                requested = details.get("requested") if details else None
-                max_allowed = details.get("max_allowed") if details else None
+                requested = details.get("requested") if details and isinstance(details, dict) else None
+                max_allowed = details.get("max_allowed") if details and isinstance(details, dict) else None
                 raise LimitExceededError(message, requested, max_allowed, code, details)
             else:
                 raise ApiError(message, code, details)
@@ -174,6 +205,7 @@ class InvestmentClient:
         Raises:
             Various exceptions based on response status
         """
+        self._validate_server_version()
         last_exception: SiteCalcError | None = None
 
         for attempt in range(self.max_retries):

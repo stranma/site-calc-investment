@@ -3,6 +3,8 @@
 Python client for long-term capacity planning and investment ROI analysis.
 """
 
+__version__ = "1.0.0"
+
 from site_calc_investment.analysis import (
     aggregate_annual,
     calculate_irr,
@@ -51,7 +53,6 @@ from site_calc_investment.models import (
     TimeSpan,
 )
 
-__version__ = "1.0.0"
 __all__ = [
     # Client
     "InvestmentClient",
