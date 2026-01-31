@@ -171,7 +171,7 @@ class TestProductionSmallTask:
         # Create job
         job = production_client.create_planning_job(request)
         assert job.job_id is not None
-        assert job.status in ("pending", "running")
+        assert job.status in ("pending", "running", "completed")  # May complete instantly for small jobs
 
         # Wait for completion with reasonable timeout
         result = production_client.wait_for_completion(job.job_id, poll_interval=5, timeout=300)
