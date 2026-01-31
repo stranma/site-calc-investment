@@ -33,6 +33,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.21",
+    "pytest-timeout>=2.2",
     "ruff>=0.1",
     "mypy>=1.0",
     "pandas>=2.0",  # For scenario comparison
@@ -57,7 +58,13 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "-v --cov=site_calc_investment --cov-report=term-missing"
+addopts = "-v --cov=site_calc_investment --cov-report=term-missing -m 'not production'"
+markers = [
+    "production: Tests requiring production API credentials (skip by default)",
+    "slow: Long-running tests",
+    "integration: Integration tests",
+]
+timeout = 300
 
 [tool.ruff]
 line-length = 120
