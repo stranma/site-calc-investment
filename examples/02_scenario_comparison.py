@@ -4,23 +4,20 @@ This example compares three different battery sizes to find the optimal
 capacity for a 10-year investment.
 """
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from site_calc_investment import (
-    InvestmentClient,
-    TimeSpan,
-    Resolution,
-    Site,
     Battery,
     BatteryProperties,
-    ElectricityImport,
     ElectricityExport,
-    MarketImportProperties,
-    MarketExportProperties,
-    InvestmentPlanningRequest,
+    ElectricityImport,
+    InvestmentClient,
     InvestmentParameters,
+    InvestmentPlanningRequest,
+    MarketExportProperties,
+    MarketImportProperties,
     OptimizationConfig,
+    Site,
+    TimeSpan,
     compare_scenarios,
 )
 
@@ -114,7 +111,7 @@ def create_scenario(
 
     job = client.create_planning_job(request)
     print(f"\n  Job ID: {job.job_id}")
-    print(f"  Waiting for completion...")
+    print("  Waiting for completion...")
 
     result = client.wait_for_completion(job.job_id, poll_interval=30, timeout=7200)
 

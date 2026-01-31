@@ -4,23 +4,19 @@ This example demonstrates a simple 10-year battery optimization
 for capacity sizing and investment ROI analysis.
 """
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 from site_calc_investment import (
-    InvestmentClient,
-    TimeSpan,
-    Resolution,
-    Site,
     Battery,
     BatteryProperties,
-    ElectricityImport,
     ElectricityExport,
-    MarketImportProperties,
-    MarketExportProperties,
-    InvestmentPlanningRequest,
+    ElectricityImport,
+    InvestmentClient,
     InvestmentParameters,
+    InvestmentPlanningRequest,
+    MarketExportProperties,
+    MarketImportProperties,
     OptimizationConfig,
+    Site,
+    TimeSpan,
 )
 
 
@@ -145,7 +141,7 @@ def main():
     # Financial metrics
     if summary.investment_metrics:
         metrics = summary.investment_metrics
-        print(f"\nFINANCIAL METRICS:")
+        print("\nFINANCIAL METRICS:")
         print(f"  Total Revenue (10y):  €{metrics.total_revenue_period:>15,.0f}")
         print(f"  Total Costs (10y):    €{metrics.total_costs_period:>15,.0f}")
         print(f"  Net Profit (10y):     €{summary.expected_profit:>15,.0f}")
@@ -155,23 +151,24 @@ def main():
 
         # Annual breakdown
         if metrics.annual_revenue_by_year:
-            print(f"\nANNUAL BREAKDOWN:")
-            for year, (revenue, cost) in enumerate(zip(metrics.annual_revenue_by_year, metrics.annual_costs_by_year), 1):
-                profit = revenue - cost
-                print(f"  Year {year:2d}:  Revenue €{revenue:>10,.0f}  |  Cost €{cost:>10,.0f}  |  Profit €{profit:>10,.0f}")
+            print("\nANNUAL BREAKDOWN:")
+            revenues = metrics.annual_revenue_by_year
+            costs = metrics.annual_costs_by_year
+            for year, (revenue, cost) in enumerate(zip(revenues, costs), 1):
+                print(f"  Year {year:2d}:  Revenue €{revenue:>10,.0f}  |  Cost €{cost:>10,.0f}")
 
     # Device schedules (first and last 24 hours)
     site_result = result.sites["battery_investment_site"]
     battery_schedule = site_result.device_schedules["Battery1"]
 
-    print(f"\nBATTERY OPERATION (First 24 hours):")
+    print("\nBATTERY OPERATION (First 24 hours):")
     el_flow = battery_schedule.flows["electricity"]
     soc = battery_schedule.soc
 
     for hour in range(24):
         print(f"  Hour {hour:2d}:  Power {el_flow[hour]:>6.2f} MW  |  SOC {soc[hour]:>5.1%}")
 
-    print(f"\nBATTERY OPERATION (Last 24 hours):")
+    print("\nBATTERY OPERATION (Last 24 hours):")
     for hour in range(-24, 0):
         actual_hour = hour % 24
         print(f"  Hour {actual_hour:2d}:  Power {el_flow[hour]:>6.2f} MW  |  SOC {soc[hour]:>5.1%}")

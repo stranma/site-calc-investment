@@ -5,10 +5,10 @@ perform detailed ROI analysis on an optimization result.
 """
 
 from site_calc_investment import (
-    calculate_npv,
-    calculate_irr,
-    calculate_payback_period,
     aggregate_annual,
+    calculate_irr,
+    calculate_npv,
+    calculate_payback_period,
 )
 
 
@@ -35,7 +35,7 @@ def main():
     print(f"Initial Investment:  €{-initial_investment:,.0f}")
     print(f"Discount Rate:        {discount_rate*100:.1f}%")
     print(f"Planning Horizon:     {len(annual_cash_flows)} years")
-    print(f"\nAnnual Cash Flows:")
+    print("\nAnnual Cash Flows:")
     for year, cf in enumerate(annual_cash_flows, 1):
         print(f"  Year {year:2d}:  €{cf:>10,.0f}")
 
@@ -54,7 +54,7 @@ def main():
 
     irr = calculate_irr(cash_flows_with_capex)
 
-    print(f"Cash Flows (including CAPEX):")
+    print("Cash Flows (including CAPEX):")
     for year, cf in enumerate(cash_flows_with_capex):
         if year == 0:
             print(f"  Year {year:2d} (CAPEX):  €{cf:>10,.0f}")
@@ -77,7 +77,7 @@ def main():
 
     payback = calculate_payback_period(cash_flows_with_capex)
 
-    print(f"Cumulative Cash Flow:")
+    print("Cumulative Cash Flow:")
     cumulative = 0
     for year, cf in enumerate(cash_flows_with_capex):
         cumulative += cf
@@ -90,11 +90,11 @@ def main():
         print(f"\nPayback Period:  {payback:.2f} years")
 
         if payback < 5:
-            print(f"✅ Quick payback (<5 years) - Low risk")
+            print("✅ Quick payback (<5 years) - Low risk")
         elif payback < 8:
-            print(f"⚠️  Moderate payback (5-8 years) - Medium risk")
+            print("⚠️  Moderate payback (5-8 years) - Medium risk")
         else:
-            print(f"❌ Long payback (>8 years) - High risk")
+            print("❌ Long payback (>8 years) - High risk")
     else:
         print("\n⚠️  Investment never pays back")
 
@@ -131,13 +131,13 @@ def main():
 
     print(f"Hourly Data Points:  {len(hourly_discharge):,}")
     print(f"Years:               {years}")
-    print(f"\nAggregated Annual Revenues:")
+    print("\nAggregated Annual Revenues:")
     for year, revenue in enumerate(annual_revenues, 1):
         print(f"  Year {year}:  €{revenue:,.0f}")
 
     # Total energy discharged
     annual_energy = aggregate_annual(hourly_discharge, years=2)
-    print(f"\nAnnual Energy Discharged:")
+    print("\nAnnual Energy Discharged:")
     for year, energy in enumerate(annual_energy, 1):
         print(f"  Year {year}:  {energy:,.0f} MWh")
 
