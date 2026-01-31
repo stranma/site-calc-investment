@@ -1,11 +1,12 @@
 """Tests for financial analysis functions."""
 
 import pytest
+
 from site_calc_investment.analysis.financial import (
-    calculate_npv,
-    calculate_irr,
-    calculate_payback_period,
     aggregate_annual,
+    calculate_irr,
+    calculate_npv,
+    calculate_payback_period,
 )
 
 
@@ -266,10 +267,8 @@ class TestFinancialAnalysisIntegration:
         """Test typical battery investment analysis."""
         # 10-year battery investment
         initial_capex = -2_000_000  # €2M
-        annual_revenue = [450_000, 460_000, 470_000, 480_000, 490_000,
-                          500_000, 510_000, 520_000, 530_000, 540_000]
-        annual_costs = [180_000, 185_000, 190_000, 195_000, 200_000,
-                        205_000, 210_000, 215_000, 220_000, 225_000]
+        annual_revenue = [450_000, 460_000, 470_000, 480_000, 490_000, 500_000, 510_000, 520_000, 530_000, 540_000]
+        annual_costs = [180_000, 185_000, 190_000, 195_000, 200_000, 205_000, 210_000, 215_000, 220_000, 225_000]
         annual_cash_flows = [r - c for r, c in zip(annual_revenue, annual_costs)]
 
         # NPV at 5%

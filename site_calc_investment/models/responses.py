@@ -1,7 +1,8 @@
 """Response models for investment client."""
 
-from typing import Optional, List, Dict, Literal
 from datetime import datetime
+from typing import Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -12,9 +13,7 @@ class Job(BaseModel):
     """
 
     job_id: str = Field(..., description="Unique job identifier")
-    status: Literal["pending", "running", "completed", "failed", "cancelled"] = Field(
-        ..., description="Job status"
-    )
+    status: Literal["pending", "running", "completed", "failed", "cancelled"] = Field(..., description="Job status")
     created_at: Optional[datetime] = Field(None, description="Job creation timestamp")
     started_at: Optional[datetime] = Field(None, description="Job start timestamp")
     completed_at: Optional[datetime] = Field(None, description="Job completion timestamp")
@@ -51,9 +50,7 @@ class DeviceSchedule(BaseModel):
 class SiteResult(BaseModel):
     """Optimization results for a single site."""
 
-    device_schedules: Dict[str, DeviceSchedule] = Field(
-        ..., description="Device schedules keyed by device name"
-    )
+    device_schedules: Dict[str, DeviceSchedule] = Field(..., description="Device schedules keyed by device name")
     grid_flows: Optional[Dict[str, List[float]]] = Field(None, description="Grid import/export flows")
 
 
@@ -71,12 +68,8 @@ class InvestmentMetrics(BaseModel):
     payback_period_years: Optional[float] = Field(None, description="Simple payback period (years)")
     total_revenue_10y: Optional[float] = Field(None, description="Total revenue over planning horizon (EUR)")
     total_costs_10y: Optional[float] = Field(None, description="Total costs over planning horizon (EUR)")
-    annual_revenue_by_year: Optional[List[float]] = Field(
-        None, description="Annual revenue for each year"
-    )
-    annual_costs_by_year: Optional[List[float]] = Field(
-        None, description="Annual costs for each year"
-    )
+    annual_revenue_by_year: Optional[List[float]] = Field(None, description="Annual revenue for each year")
+    annual_costs_by_year: Optional[List[float]] = Field(None, description="Annual costs for each year")
 
 
 class Summary(BaseModel):

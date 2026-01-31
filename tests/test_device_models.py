@@ -4,25 +4,25 @@ import pytest
 from pydantic import ValidationError
 
 from site_calc_investment.models.devices import (
+    CHP,
     Battery,
     BatteryProperties,
-    CHP,
     CHPProperties,
+    DemandProperties,
+    ElectricityDemand,
+    ElectricityExport,
+    ElectricityImport,
+    GasImport,
     HeatAccumulator,
     HeatAccumulatorProperties,
+    HeatDemand,
+    HeatExport,
+    Location,
+    MarketExportProperties,
+    MarketImportProperties,
     Photovoltaic,
     PhotovoltaicProperties,
-    HeatDemand,
-    ElectricityDemand,
-    DemandProperties,
-    ElectricityImport,
-    ElectricityExport,
-    GasImport,
-    HeatExport,
-    MarketImportProperties,
-    MarketExportProperties,
     Schedule,
-    Location,
 )
 
 
@@ -33,12 +33,7 @@ class TestBattery:
         """Test basic battery creation."""
         battery = Battery(
             name="Battery1",
-            properties=BatteryProperties(
-                capacity=10.0,
-                max_power=5.0,
-                efficiency=0.90,
-                initial_soc=0.5
-            )
+            properties=BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.90, initial_soc=0.5),
         )
 
         assert battery.name == "Battery1"
@@ -52,12 +47,7 @@ class TestBattery:
         """Test that Battery has NO ancillary_services field."""
         battery = Battery(
             name="Battery1",
-            properties=BatteryProperties(
-                capacity=10.0,
-                max_power=5.0,
-                efficiency=0.90,
-                initial_soc=0.5
-            )
+            properties=BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.90, initial_soc=0.5),
         )
 
         # Should not have ancillary_services attribute
@@ -67,15 +57,8 @@ class TestBattery:
         """Test battery with operational schedule."""
         battery = Battery(
             name="Battery1",
-            properties=BatteryProperties(
-                capacity=10.0,
-                max_power=5.0,
-                efficiency=0.90,
-                initial_soc=0.5
-            ),
-            schedule=Schedule(
-                max_hours_per_day=20.0
-            )
+            properties=BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.90, initial_soc=0.5),
+            schedule=Schedule(max_hours_per_day=20.0),
         )
 
         assert battery.schedule is not None
@@ -89,7 +72,7 @@ class TestBattery:
                 capacity=-10.0,  # Invalid
                 max_power=5.0,
                 efficiency=0.90,
-                initial_soc=0.5
+                initial_soc=0.5,
             )
 
         # Efficiency must be <= 1
@@ -98,7 +81,7 @@ class TestBattery:
                 capacity=10.0,
                 max_power=5.0,
                 efficiency=1.5,  # Invalid
-                initial_soc=0.5
+                initial_soc=0.5,
             )
 
         # SOC must be 0-1
@@ -107,7 +90,7 @@ class TestBattery:
                 capacity=10.0,
                 max_power=5.0,
                 efficiency=0.90,
-                initial_soc=1.5  # Invalid
+                initial_soc=1.5,  # Invalid
             )
 
 
@@ -116,15 +99,7 @@ class TestCHP:
 
     def test_chp_creation(self):
         """Test basic CHP creation."""
-        chp = CHP(
-            name="CHP1",
-            properties=CHPProperties(
-                gas_input=8.0,
-                el_output=3.0,
-                heat_output=4.0,
-                is_binary=False
-            )
-        )
+        chp = CHP(name="CHP1", properties=CHPProperties(gas_input=8.0, el_output=3.0, heat_output=4.0, is_binary=False))
 
         assert chp.name == "CHP1"
         assert chp.type == "chp"
@@ -141,8 +116,8 @@ class TestCHP:
                 gas_input=8.0,
                 el_output=3.0,
                 heat_output=4.0,
-                is_binary=True  # Will be relaxed by solver
-            )
+                is_binary=True,  # Will be relaxed by solver
+            ),
         )
 
         # Flag is stored but will be ignored by optimization
@@ -157,8 +132,8 @@ class TestCHP:
                 el_output=3.0,
                 heat_output=4.0,
                 is_binary=False,
-                min_power=0.5  # 50% minimum
-            )
+                min_power=0.5,  # 50% minimum
+            ),
         )
 
         assert chp.properties.min_power == 0.5
@@ -172,12 +147,8 @@ class TestHeatAccumulator:
         ha = HeatAccumulator(
             name="HeatAcc1",
             properties=HeatAccumulatorProperties(
-                capacity=5.0,
-                max_power=2.0,
-                efficiency=0.98,
-                initial_soc=0.6,
-                loss_rate=0.001
-            )
+                capacity=5.0, max_power=2.0, efficiency=0.98, initial_soc=0.6, loss_rate=0.001
+            ),
         )
 
         assert ha.name == "HeatAcc1"
@@ -193,11 +164,8 @@ class TestPhotovoltaic:
         pv = Photovoltaic(
             name="PV1",
             properties=PhotovoltaicProperties(
-                peak_power_mw=5.0,
-                location=Location(latitude=50.0751, longitude=14.4378),
-                tilt=35,
-                azimuth=180
-            )
+                peak_power_mw=5.0, location=Location(latitude=50.0751, longitude=14.4378), tilt=35, azimuth=180
+            ),
         )
 
         assert pv.name == "PV1"
@@ -216,8 +184,8 @@ class TestPhotovoltaic:
                 location=Location(latitude=50.0, longitude=14.0),
                 tilt=35,
                 azimuth=180,
-                generation_profile=profile
-            )
+                generation_profile=profile,
+            ),
         )
 
         assert len(pv.properties.generation_profile) == 96
@@ -230,7 +198,7 @@ class TestPhotovoltaic:
                 location=Location(latitude=50.0, longitude=14.0),
                 tilt=35,
                 azimuth=180,
-                generation_profile=[1.5]  # Invalid: > 1
+                generation_profile=[1.5],  # Invalid: > 1
             )
 
 
@@ -241,10 +209,7 @@ class TestDemandDevices:
         """Test heat demand creation."""
         demand = HeatDemand(
             name="HeatDemand1",
-            properties=DemandProperties(
-                max_demand_profile=[2.0, 1.8, 1.5],
-                min_demand_profile=[2.0, 1.8, 1.5]
-            )
+            properties=DemandProperties(max_demand_profile=[2.0, 1.8, 1.5], min_demand_profile=[2.0, 1.8, 1.5]),
         )
 
         assert demand.name == "HeatDemand1"
@@ -257,8 +222,8 @@ class TestDemandDevices:
             name="ElecDemand1",
             properties=DemandProperties(
                 max_demand_profile=[3.0] * 24,
-                min_demand_profile=2.0  # Constant minimum
-            )
+                min_demand_profile=2.0,  # Constant minimum
+            ),
         )
 
         assert demand.type == "electricity_demand"
@@ -269,7 +234,7 @@ class TestDemandDevices:
         with pytest.raises(ValidationError):
             DemandProperties(
                 max_demand_profile=[-1.0, 2.0, 3.0],  # Invalid: negative
-                min_demand_profile=0.0
+                min_demand_profile=0.0,
             )
 
 
@@ -279,13 +244,7 @@ class TestMarketDevices:
     def test_electricity_import_creation(self):
         """Test electricity import device."""
         prices = [30.0] * 24
-        device = ElectricityImport(
-            name="GridImport",
-            properties=MarketImportProperties(
-                price=prices,
-                max_import=8.0
-            )
-        )
+        device = ElectricityImport(name="GridImport", properties=MarketImportProperties(price=prices, max_import=8.0))
 
         assert device.type == "electricity_import"
         assert device.properties.max_import == 8.0
@@ -294,13 +253,7 @@ class TestMarketDevices:
     def test_electricity_export_creation(self):
         """Test electricity export device."""
         prices = [30.0] * 24
-        device = ElectricityExport(
-            name="GridExport",
-            properties=MarketExportProperties(
-                price=prices,
-                max_export=5.0
-            )
-        )
+        device = ElectricityExport(name="GridExport", properties=MarketExportProperties(price=prices, max_export=5.0))
 
         assert device.type == "electricity_export"
         assert device.properties.max_export == 5.0
@@ -308,26 +261,14 @@ class TestMarketDevices:
     def test_gas_import_creation(self):
         """Test gas import device."""
         prices = [25.0] * 24
-        device = GasImport(
-            name="GasSupply",
-            properties=MarketImportProperties(
-                price=prices,
-                max_import=10.0
-            )
-        )
+        device = GasImport(name="GasSupply", properties=MarketImportProperties(price=prices, max_import=10.0))
 
         assert device.type == "gas_import"
 
     def test_heat_export_creation(self):
         """Test heat export device."""
         prices = [40.0] * 24
-        device = HeatExport(
-            name="HeatExport",
-            properties=MarketExportProperties(
-                price=prices,
-                max_export=3.0
-            )
-        )
+        device = HeatExport(name="HeatExport", properties=MarketExportProperties(price=prices, max_export=3.0))
 
         assert device.type == "heat_export"
 
@@ -339,8 +280,8 @@ class TestMarketDevices:
             properties=MarketImportProperties(
                 price=prices,
                 max_import=8.0,
-                max_import_unit_cost=144.0  # EUR/MW/year
-            )
+                max_import_unit_cost=144.0,  # EUR/MW/year
+            ),
         )
 
         assert device.properties.max_import_unit_cost == 144.0
@@ -351,11 +292,7 @@ class TestSchedule:
 
     def test_schedule_creation(self):
         """Test basic schedule creation."""
-        schedule = Schedule(
-            min_continuous_run_hours=2.0,
-            max_hours_per_day=18.0,
-            max_starts_per_day=3
-        )
+        schedule = Schedule(min_continuous_run_hours=2.0, max_hours_per_day=18.0, max_starts_per_day=3)
 
         assert schedule.min_continuous_run_hours == 2.0
         assert schedule.max_hours_per_day == 18.0

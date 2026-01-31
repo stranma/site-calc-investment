@@ -3,52 +3,52 @@
 Python client for long-term capacity planning and investment ROI analysis.
 """
 
-from site_calc_investment.api.client import InvestmentClient
-from site_calc_investment.models import (
-    # Core models
-    TimeSpan,
-    Resolution,
-    Location,
-    # Device models (NO ancillary_services)
-    Battery,
-    CHP,
-    HeatAccumulator,
-    Photovoltaic,
-    HeatDemand,
-    ElectricityDemand,
-    ElectricityImport,
-    ElectricityExport,
-    GasImport,
-    HeatExport,
-    # Site and configuration
-    Site,
-    Schedule,
-    InvestmentParameters,
-    OptimizationConfig,
-    # Request models
-    InvestmentPlanningRequest,
-    # Response models
-    Job,
-    InvestmentPlanningResponse,
-    InvestmentMetrics,
-)
 from site_calc_investment.analysis import (
-    calculate_npv,
-    calculate_irr,
-    calculate_payback_period,
     aggregate_annual,
+    calculate_irr,
+    calculate_npv,
+    calculate_payback_period,
     compare_scenarios,
 )
+from site_calc_investment.api.client import InvestmentClient
 from site_calc_investment.exceptions import (
-    SiteCalcError,
     ApiError,
-    ValidationError,
     AuthenticationError,
     ForbiddenFeatureError,
-    LimitExceededError,
-    TimeoutError,
-    OptimizationError,
     JobNotFoundError,
+    LimitExceededError,
+    OptimizationError,
+    SiteCalcError,
+    TimeoutError,
+    ValidationError,
+)
+from site_calc_investment.models import (
+    CHP,
+    # Device models (NO ancillary_services)
+    Battery,
+    ElectricityDemand,
+    ElectricityExport,
+    ElectricityImport,
+    GasImport,
+    HeatAccumulator,
+    HeatDemand,
+    HeatExport,
+    InvestmentMetrics,
+    InvestmentParameters,
+    # Request models
+    InvestmentPlanningRequest,
+    InvestmentPlanningResponse,
+    # Response models
+    Job,
+    Location,
+    OptimizationConfig,
+    Photovoltaic,
+    Resolution,
+    Schedule,
+    # Site and configuration
+    Site,
+    # Core models
+    TimeSpan,
 )
 
 __version__ = "1.0.0"

@@ -2,20 +2,21 @@
 
 import time
 from typing import Optional
+
 import httpx
 
-from site_calc_investment.models.requests import InvestmentPlanningRequest
-from site_calc_investment.models.responses import Job, InvestmentPlanningResponse
 from site_calc_investment.exceptions import (
     ApiError,
-    ValidationError,
     AuthenticationError,
     ForbiddenFeatureError,
-    LimitExceededError,
-    TimeoutError,
-    OptimizationError,
     JobNotFoundError,
+    LimitExceededError,
+    OptimizationError,
+    TimeoutError,
+    ValidationError,
 )
+from site_calc_investment.models.requests import InvestmentPlanningRequest
+from site_calc_investment.models.responses import InvestmentPlanningResponse, Job
 
 
 class InvestmentClient:
@@ -171,7 +172,7 @@ class InvestmentClient:
 
                 self._handle_error(response)
 
-            except httpx.TimeoutException as e:
+            except httpx.TimeoutException:
                 last_exception = TimeoutError(f"Request timeout after {self.timeout}s", timeout=self.timeout)
                 if attempt < self.max_retries - 1:
                     time.sleep(2**attempt)

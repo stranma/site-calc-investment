@@ -13,18 +13,16 @@ from site_calc_investment import (
 
 
 def main():
-    print("="*80)
+    print("=" * 80)
     print("FINANCIAL ANALYSIS EXAMPLE")
-    print("="*80)
+    print("=" * 80)
 
     # Example 1: Simple NPV calculation
     print("\n1. NET PRESENT VALUE (NPV)")
     print("-" * 80)
 
-    annual_revenues = [100_000, 105_000, 110_000, 115_000, 120_000,
-                       125_000, 130_000, 135_000, 140_000, 145_000]
-    annual_costs = [30_000, 31_000, 32_000, 33_000, 34_000,
-                    35_000, 36_000, 37_000, 38_000, 39_000]
+    annual_revenues = [100_000, 105_000, 110_000, 115_000, 120_000, 125_000, 130_000, 135_000, 140_000, 145_000]
+    annual_costs = [30_000, 31_000, 32_000, 33_000, 34_000, 35_000, 36_000, 37_000, 38_000, 39_000]
     annual_cash_flows = [r - c for r, c in zip(annual_revenues, annual_costs)]
     initial_investment = -500_000  # €500k CAPEX
 
@@ -33,7 +31,7 @@ def main():
     npv = calculate_npv(annual_cash_flows, discount_rate, initial_investment)
 
     print(f"Initial Investment:  €{-initial_investment:,.0f}")
-    print(f"Discount Rate:        {discount_rate*100:.1f}%")
+    print(f"Discount Rate:        {discount_rate * 100:.1f}%")
     print(f"Planning Horizon:     {len(annual_cash_flows)} years")
     print("\nAnnual Cash Flows:")
     for year, cf in enumerate(annual_cash_flows, 1):
@@ -62,12 +60,12 @@ def main():
             print(f"  Year {year:2d}:          €{cf:>10,.0f}")
 
     if irr is not None:
-        print(f"\nIRR:  {irr*100:.2f}%")
+        print(f"\nIRR:  {irr * 100:.2f}%")
 
         if irr > discount_rate:
-            print(f"✅ IRR ({irr*100:.2f}%) > Discount Rate ({discount_rate*100:.1f}%) - Good investment")
+            print(f"✅ IRR ({irr * 100:.2f}%) > Discount Rate ({discount_rate * 100:.1f}%) - Good investment")
         else:
-            print(f"❌ IRR ({irr*100:.2f}%) < Discount Rate ({discount_rate*100:.1f}%) - Poor investment")
+            print(f"❌ IRR ({irr * 100:.2f}%) < Discount Rate ({discount_rate * 100:.1f}%) - Poor investment")
     else:
         print("\n⚠️  Could not calculate IRR")
 
@@ -152,9 +150,9 @@ def main():
 
     for rate in discount_rates:
         npv = calculate_npv(annual_cash_flows, rate, initial_investment)
-        print(f"{rate*100:>6.1f}%              €{npv:>12,.0f}")
+        print(f"{rate * 100:>6.1f}%              €{npv:>12,.0f}")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # SYNC: This file may be synced between investment and operational clients
 """Custom exceptions for the investment client."""
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 class SiteCalcError(Exception):

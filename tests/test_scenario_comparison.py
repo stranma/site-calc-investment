@@ -1,8 +1,6 @@
 """Tests for scenario comparison utilities."""
 
 import pytest
-from io import StringIO
-import sys
 
 from site_calc_investment.analysis.comparison import compare_scenarios, print_comparison
 from site_calc_investment.models.responses import InvestmentPlanningResponse
@@ -51,10 +49,7 @@ class TestCompareScenarios:
         result1 = InvestmentPlanningResponse(**mock_job_completed_response)
         result2 = InvestmentPlanningResponse(**mock_job_completed_response)
 
-        comparison = compare_scenarios(
-            [result1, result2],
-            names=["10 MW Battery", "20 MW Battery"]
-        )
+        comparison = compare_scenarios([result1, result2], names=["10 MW Battery", "20 MW Battery"])
 
         assert comparison["names"] == ["10 MW Battery", "20 MW Battery"]
 
@@ -79,8 +74,15 @@ class TestCompareScenarios:
 
         # Check all expected keys
         expected_keys = {
-            "names", "total_revenue", "total_costs", "profit",
-            "npv", "irr", "payback_years", "solve_time_seconds", "solver_status"
+            "names",
+            "total_revenue",
+            "total_costs",
+            "profit",
+            "npv",
+            "irr",
+            "payback_years",
+            "solve_time_seconds",
+            "solver_status",
         }
         assert set(comparison.keys()) == expected_keys
 
@@ -136,8 +138,8 @@ class TestCompareScenarios:
 
         # Revenue should fall back to profit + cost
         expected_revenue = (
-            mock_job_completed_response["summary"]["expected_profit"] +
-            mock_job_completed_response["summary"]["total_cost"]
+            mock_job_completed_response["summary"]["expected_profit"]
+            + mock_job_completed_response["summary"]["total_cost"]
         )
         assert comparison["total_revenue"][0] == expected_revenue
 
@@ -161,10 +163,7 @@ class TestCompareScenarios:
         result3_data["summary"]["investment_metrics"]["irr"] = 0.16
         result3 = InvestmentPlanningResponse(**result3_data)
 
-        comparison = compare_scenarios(
-            [result1, result2, result3],
-            names=["Small", "Medium", "Large"]
-        )
+        comparison = compare_scenarios([result1, result2, result3], names=["Small", "Medium", "Large"])
 
         # Check NPV progression
         assert comparison["npv"][0] == 500000.0
@@ -251,10 +250,7 @@ class TestPrintComparison:
         result3_data["summary"]["investment_metrics"]["npv"] = 1500000.0
         result3 = InvestmentPlanningResponse(**result3_data)
 
-        comparison = compare_scenarios(
-            [result1, result2, result3],
-            names=["Small", "Large", "Medium"]
-        )
+        comparison = compare_scenarios([result1, result2, result3], names=["Small", "Large", "Medium"])
         print_comparison(comparison)
 
         captured = capsys.readouterr()
@@ -329,7 +325,7 @@ class TestPrintComparison:
 
         # Extract sections (excluding footer)
         with_metrics_section = "\n".join(lines[with_metrics_idx:without_metrics_idx])
-        without_metrics_section = "\n".join(lines[without_metrics_idx:without_metrics_idx + footer_idx])
+        without_metrics_section = "\n".join(lines[without_metrics_idx : without_metrics_idx + footer_idx])
 
         # First scenario should have NPV, IRR, Payback
         assert "NPV:" in with_metrics_section
@@ -371,8 +367,7 @@ class TestComparisonIntegration:
 
         # Compare
         comparison = compare_scenarios(
-            [small, medium, large],
-            names=["10 MWh Battery", "20 MWh Battery", "30 MWh Battery"]
+            [small, medium, large], names=["10 MWh Battery", "20 MWh Battery", "30 MWh Battery"]
         )
 
         # Verify comparison data
@@ -412,5 +407,5 @@ class TestComparisonIntegration:
         for i in range(len(comparison["names"])):
             row = {key: comparison[key][i] for key in comparison.keys()}
             # Should be able to extract a row
-            assert row["names"] == f"Scenario {i+1}"
+            assert row["names"] == f"Scenario {i + 1}"
             assert isinstance(row["npv"], (float, type(None)))

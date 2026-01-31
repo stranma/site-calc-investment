@@ -1,12 +1,13 @@
 """Device models for investment client (NO ancillary services)."""
 
-from typing import Optional, List, Union, Literal
+from typing import List, Literal, Optional, Union
+
 from pydantic import BaseModel, Field, field_validator
 
 from site_calc_investment.models.common import Location
 
-
 # Device Properties Models
+
 
 class BatteryProperties(BaseModel):
     """Battery storage properties."""
@@ -44,9 +45,7 @@ class PhotovoltaicProperties(BaseModel):
     location: Location = Field(..., description="Geographic location")
     tilt: int = Field(..., ge=0, le=90, description="Panel tilt angle (degrees)")
     azimuth: int = Field(..., ge=0, lt=360, description="Azimuth angle (degrees, 180=south)")
-    generation_profile: Optional[List[float]] = Field(
-        None, description="Optional normalized generation profile (0-1)"
-    )
+    generation_profile: Optional[List[float]] = Field(None, description="Optional normalized generation profile (0-1)")
 
     @field_validator("generation_profile")
     @classmethod
@@ -94,12 +93,11 @@ class MarketExportProperties(BaseModel):
 
     price: List[float] = Field(..., description="Price profile (EUR/MWh)")
     max_export: float = Field(..., gt=0, description="Maximum export capacity (MW)")
-    max_export_unit_cost: Optional[float] = Field(
-        None, ge=0, description="Optional export capacity cost (EUR/MW/year)"
-    )
+    max_export_unit_cost: Optional[float] = Field(None, ge=0, description="Optional export capacity cost (EUR/MW/year)")
 
 
 # Schedule Model
+
 
 class Schedule(BaseModel):
     """Operational schedule constraints.
@@ -150,6 +148,7 @@ class Schedule(BaseModel):
 
 
 # Device Models
+
 
 class Battery(BaseModel):
     """Battery storage device (NO ancillary services for investment client)."""

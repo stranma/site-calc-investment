@@ -1,9 +1,10 @@
 """Request models for investment client."""
 
-from typing import List, Optional, Dict, Literal
+from typing import Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
-from site_calc_investment.models.common import TimeSpan, Resolution
+from site_calc_investment.models.common import Resolution, TimeSpan
 from site_calc_investment.models.devices import Device
 
 

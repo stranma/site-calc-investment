@@ -1,7 +1,6 @@
 """Financial analysis functions."""
 
 from typing import List, Optional
-import numpy as np
 
 
 def calculate_npv(

@@ -1,12 +1,11 @@
 # SYNC: This file may be synced between investment and operational clients
 """Common models shared across the investment client."""
 
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from enum import Enum
-from typing import Optional
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, Field, field_validator, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 
 class Resolution(str, Enum):

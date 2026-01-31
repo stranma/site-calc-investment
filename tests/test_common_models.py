@@ -1,10 +1,11 @@
 """Tests for common models (TimeSpan, Resolution, Location)."""
 
-import pytest
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from site_calc_investment.models.common import TimeSpan, Resolution, Location
+import pytest
+
+from site_calc_investment.models.common import Location, Resolution, TimeSpan
 
 
 class TestResolution:
@@ -32,11 +33,7 @@ class TestTimeSpan:
     def test_timespan_creation(self, prague_tz):
         """Test basic TimeSpan creation."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
-        ts = TimeSpan(
-            start=start,
-            intervals=24,
-            resolution=Resolution.HOUR_1
-        )
+        ts = TimeSpan(start=start, intervals=24, resolution=Resolution.HOUR_1)
 
         assert ts.start == start
         assert ts.intervals == 24
@@ -45,11 +42,7 @@ class TestTimeSpan:
     def test_timespan_computed_end(self, prague_tz):
         """Test computed end property."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
-        ts = TimeSpan(
-            start=start,
-            intervals=24,
-            resolution=Resolution.HOUR_1
-        )
+        ts = TimeSpan(start=start, intervals=24, resolution=Resolution.HOUR_1)
 
         expected_end = start + timedelta(hours=24)
         assert ts.end == expected_end
@@ -57,11 +50,7 @@ class TestTimeSpan:
     def test_timespan_computed_duration(self, prague_tz):
         """Test computed duration property."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
-        ts = TimeSpan(
-            start=start,
-            intervals=96,
-            resolution=Resolution.MINUTES_15
-        )
+        ts = TimeSpan(start=start, intervals=96, resolution=Resolution.MINUTES_15)
 
         assert ts.duration == timedelta(days=1)
 
@@ -71,7 +60,7 @@ class TestTimeSpan:
         ts = TimeSpan(
             start=start,
             intervals=87600,  # 10 years
-            resolution=Resolution.HOUR_1
+            resolution=Resolution.HOUR_1,
         )
 
         assert abs(ts.years - 10.0) < 0.01  # Allow small floating point error
@@ -115,22 +104,14 @@ class TestTimeSpan:
         start_without_tz = datetime(2025, 1, 1, 0, 0, 0)
 
         with pytest.raises(ValueError, match="Timezone must be specified"):
-            TimeSpan(
-                start=start_without_tz,
-                intervals=24,
-                resolution=Resolution.HOUR_1
-            )
+            TimeSpan(start=start_without_tz, intervals=24, resolution=Resolution.HOUR_1)
 
     def test_timespan_requires_prague_timezone(self):
         """Test that Europe/Prague timezone is required."""
         start_wrong_tz = datetime(2025, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC"))
 
         with pytest.raises(ValueError, match="Timezone must be Europe/Prague"):
-            TimeSpan(
-                start=start_wrong_tz,
-                intervals=24,
-                resolution=Resolution.HOUR_1
-            )
+            TimeSpan(start=start_wrong_tz, intervals=24, resolution=Resolution.HOUR_1)
 
     def test_timespan_minimum_intervals(self, prague_tz):
         """Test minimum intervals validation."""
@@ -140,7 +121,7 @@ class TestTimeSpan:
             TimeSpan(
                 start=start,
                 intervals=0,  # Invalid
-                resolution=Resolution.HOUR_1
+                resolution=Resolution.HOUR_1,
             )
 
     def test_timespan_maximum_intervals(self, prague_tz):
@@ -151,17 +132,13 @@ class TestTimeSpan:
             TimeSpan(
                 start=start,
                 intervals=100_001,  # Over limit
-                resolution=Resolution.HOUR_1
+                resolution=Resolution.HOUR_1,
             )
 
     def test_timespan_to_api_dict(self, prague_tz):
         """Test conversion to API format."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
-        ts = TimeSpan(
-            start=start,
-            intervals=24,
-            resolution=Resolution.HOUR_1
-        )
+        ts = TimeSpan(start=start, intervals=24, resolution=Resolution.HOUR_1)
 
         api_dict = ts.to_api_dict()
 

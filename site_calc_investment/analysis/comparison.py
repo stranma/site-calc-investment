@@ -1,6 +1,7 @@
 """Scenario comparison utilities."""
 
 from typing import List, Optional
+
 from site_calc_investment.models.responses import InvestmentPlanningResponse
 
 
@@ -32,7 +33,7 @@ def compare_scenarios(
         raise ValueError("At least one scenario is required")
 
     if names is None:
-        names = [f"Scenario {i+1}" for i in range(len(scenarios))]
+        names = [f"Scenario {i + 1}" for i in range(len(scenarios))]
 
     if len(names) != len(scenarios):
         raise ValueError(f"Number of names ({len(names)}) must match number of scenarios ({len(scenarios)})")
@@ -93,7 +94,7 @@ def print_comparison(comparison: dict) -> None:
             print(f"  NPV:             €{comparison['npv'][i]:>15,.0f}")
 
         if comparison["irr"][i] is not None:
-            print(f"  IRR:              {comparison['irr'][i]*100:>15.2f}%")
+            print(f"  IRR:              {comparison['irr'][i] * 100:>15.2f}%")
 
         if comparison["payback_years"][i] is not None:
             print(f"  Payback:          {comparison['payback_years'][i]:>15.1f} years")

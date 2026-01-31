@@ -1,18 +1,18 @@
 """Tests for request models."""
 
-import pytest
 from datetime import datetime
-from zoneinfo import ZoneInfo
+
+import pytest
 from pydantic import ValidationError
 
+from site_calc_investment.models.common import Resolution, TimeSpan
 from site_calc_investment.models.requests import (
-    Site,
     InvestmentParameters,
-    OptimizationConfig,
-    TimeSpanInvestment,
     InvestmentPlanningRequest,
+    OptimizationConfig,
+    Site,
+    TimeSpanInvestment,
 )
-from site_calc_investment.models.common import TimeSpan, Resolution
 
 
 class TestSite:
@@ -32,10 +32,7 @@ class TestSite:
         grid_import.name = "Battery1"  # Duplicate!
 
         with pytest.raises(ValueError, match="unique"):
-            Site(
-                site_id="test",
-                devices=[battery_10mw, battery_dup]
-            )
+            Site(site_id="test", devices=[battery_10mw, battery_dup])
 
     def test_site_requires_at_least_one_device(self):
         """Test that site requires at least one device."""
@@ -49,9 +46,7 @@ class TestInvestmentParameters:
     def test_investment_params_creation(self):
         """Test basic investment parameters creation."""
         params = InvestmentParameters(
-            discount_rate=0.05,
-            device_capital_costs={"Battery1": 500000},
-            device_annual_opex={"Battery1": 5000}
+            discount_rate=0.05, device_capital_costs={"Battery1": 500000}, device_annual_opex={"Battery1": 5000}
         )
 
         assert params.discount_rate == 0.05
@@ -62,7 +57,7 @@ class TestInvestmentParameters:
         """Test price escalation rate."""
         params = InvestmentParameters(
             discount_rate=0.05,
-            price_escalation_rate=0.02  # 2% annual
+            price_escalation_rate=0.02,  # 2% annual
         )
 
         assert params.price_escalation_rate == 0.02
@@ -119,7 +114,7 @@ class TestTimeSpanInvestment:
         ts = TimeSpanInvestment(
             start=start,
             intervals=8760,  # 1 year
-            resolution=Resolution.HOUR_1
+            resolution=Resolution.HOUR_1,
         )
 
         assert ts.intervals == 8760
@@ -130,38 +125,22 @@ class TestTimeSpanInvestment:
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
 
         # Valid: exactly at limit
-        TimeSpanInvestment(
-            start=start,
-            intervals=100_000,
-            resolution=Resolution.HOUR_1
-        )
+        TimeSpanInvestment(start=start, intervals=100_000, resolution=Resolution.HOUR_1)
 
         # Invalid: exceeds limit
         with pytest.raises(ValidationError, match="less than or equal to 100000"):
-            TimeSpanInvestment(
-                start=start,
-                intervals=100_001,
-                resolution=Resolution.HOUR_1
-            )
+            TimeSpanInvestment(start=start, intervals=100_001, resolution=Resolution.HOUR_1)
 
     def test_timespan_investment_only_1h_resolution(self, prague_tz):
         """Test that investment client only supports 1-hour resolution."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
 
         # Valid: 1-hour
-        TimeSpanInvestment(
-            start=start,
-            intervals=24,
-            resolution=Resolution.HOUR_1
-        )
+        TimeSpanInvestment(start=start, intervals=24, resolution=Resolution.HOUR_1)
 
         # Invalid: 15-minute not allowed
         with pytest.raises(ValidationError, match="literal_error"):
-            TimeSpanInvestment(
-                start=start,
-                intervals=96,
-                resolution=Resolution.MINUTES_15
-            )
+            TimeSpanInvestment(start=start, intervals=96, resolution=Resolution.MINUTES_15)
 
     def test_timespan_investment_for_years(self):
         """Test for_years factory for investment."""
@@ -170,11 +149,7 @@ class TestTimeSpanInvestment:
         base_ts = TimeSpan.for_years(2025, 10)
 
         # Convert to investment timespan
-        ts = TimeSpanInvestment(
-            start=base_ts.start,
-            intervals=base_ts.intervals,
-            resolution=base_ts.resolution
-        )
+        ts = TimeSpanInvestment(start=base_ts.start, intervals=base_ts.intervals, resolution=base_ts.resolution)
 
         assert ts.intervals == 87600
         assert abs(ts.years - 10.0) < 0.01
@@ -183,26 +158,16 @@ class TestTimeSpanInvestment:
 class TestInvestmentPlanningRequest:
     """Tests for InvestmentPlanningRequest model."""
 
-    def test_investment_planning_request_creation(
-        self,
-        simple_site,
-        prague_tz,
-        investment_params,
-        optimization_config
-    ):
+    def test_investment_planning_request_creation(self, simple_site, prague_tz, investment_params, optimization_config):
         """Test basic request creation."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
-        timespan = TimeSpanInvestment(
-            start=start,
-            intervals=87600,
-            resolution=Resolution.HOUR_1
-        )
+        timespan = TimeSpanInvestment(start=start, intervals=87600, resolution=Resolution.HOUR_1)
 
         request = InvestmentPlanningRequest(
             sites=[simple_site],
             timespan=timespan,
             investment_parameters=investment_params,
-            optimization_config=optimization_config
+            optimization_config=optimization_config,
         )
 
         assert len(request.sites) == 1
@@ -210,41 +175,22 @@ class TestInvestmentPlanningRequest:
         assert request.investment_parameters.discount_rate == 0.05
         assert request.optimization_config.objective == "maximize_npv"
 
-    def test_investment_planning_request_optional_params(
-        self,
-        simple_site,
-        prague_tz
-    ):
+    def test_investment_planning_request_optional_params(self, simple_site, prague_tz):
         """Test request with optional parameters."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
-        timespan = TimeSpanInvestment(
-            start=start,
-            intervals=8760,
-            resolution=Resolution.HOUR_1
-        )
+        timespan = TimeSpanInvestment(start=start, intervals=8760, resolution=Resolution.HOUR_1)
 
         # Investment parameters optional
-        request = InvestmentPlanningRequest(
-            sites=[simple_site],
-            timespan=timespan
-        )
+        request = InvestmentPlanningRequest(sites=[simple_site], timespan=timespan)
 
         assert request.investment_parameters is None
         # Config should have defaults
         assert request.optimization_config.objective == "maximize_npv"
 
-    def test_investment_planning_request_site_limit(
-        self,
-        simple_site,
-        prague_tz
-    ):
+    def test_investment_planning_request_site_limit(self, simple_site, prague_tz):
         """Test maximum sites limit (50)."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
-        timespan = TimeSpanInvestment(
-            start=start,
-            intervals=8760,
-            resolution=Resolution.HOUR_1
-        )
+        timespan = TimeSpanInvestment(start=start, intervals=8760, resolution=Resolution.HOUR_1)
 
         # Valid: 50 sites
         many_sites = []
@@ -253,38 +199,21 @@ class TestInvestmentPlanningRequest:
             site.site_id = f"site_{i}"
             many_sites.append(site)
 
-        request = InvestmentPlanningRequest(
-            sites=many_sites,
-            timespan=timespan
-        )
+        request = InvestmentPlanningRequest(sites=many_sites, timespan=timespan)
         assert len(request.sites) == 50
 
         # Invalid: 51 sites
         too_many_sites = many_sites + [simple_site.model_copy()]
         with pytest.raises(ValueError):
-            InvestmentPlanningRequest(
-                sites=too_many_sites,
-                timespan=timespan
-            )
+            InvestmentPlanningRequest(sites=too_many_sites, timespan=timespan)
 
-    def test_investment_planning_request_to_api_dict(
-        self,
-        simple_site,
-        prague_tz,
-        investment_params
-    ):
+    def test_investment_planning_request_to_api_dict(self, simple_site, prague_tz, investment_params):
         """Test conversion to API format."""
         start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
-        timespan = TimeSpanInvestment(
-            start=start,
-            intervals=8760,
-            resolution=Resolution.HOUR_1
-        )
+        timespan = TimeSpanInvestment(start=start, intervals=8760, resolution=Resolution.HOUR_1)
 
         request = InvestmentPlanningRequest(
-            sites=[simple_site],
-            timespan=timespan,
-            investment_parameters=investment_params
+            sites=[simple_site], timespan=timespan, investment_parameters=investment_params
         )
 
         api_dict = request.model_dump_for_api()

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Verify that the package is ready for publishing to a new repository."""
 
-import os
 import sys
 from pathlib import Path
 
