@@ -46,7 +46,7 @@ class InvestmentClient:
         self,
         base_url: str,
         api_key: str,
-        timeout: float = 3600.0,
+        timeout: float = 900.0,
         max_retries: int = 3,
     ):
         """Initialize the investment client.

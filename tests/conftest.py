@@ -123,7 +123,7 @@ def investment_params() -> InvestmentParameters:
 @pytest.fixture
 def optimization_config() -> OptimizationConfig:
     """Optimization configuration for testing."""
-    return OptimizationConfig(objective="maximize_profit", time_limit_seconds=3600, relax_binary_variables=True)
+    return OptimizationConfig(objective="maximize_profit", time_limit_seconds=300, relax_binary_variables=True)
 
 
 @pytest.fixture

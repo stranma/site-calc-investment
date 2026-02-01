@@ -83,7 +83,7 @@ class TestOptimizationConfig:
         config = OptimizationConfig()
 
         assert config.objective == "maximize_profit"
-        assert config.time_limit_seconds == 3600
+        assert config.time_limit_seconds == 300
         assert config.relax_binary_variables is True
 
     def test_optimization_config_objectives(self):
@@ -97,13 +97,13 @@ class TestOptimizationConfig:
         assert config3.objective == "minimize_cost"
 
     def test_optimization_config_timeout_validation(self):
-        """Test timeout validation (max 1 hour for investment)."""
+        """Test timeout validation (max 15 minutes for investment)."""
         # Valid
-        OptimizationConfig(time_limit_seconds=3600)
+        OptimizationConfig(time_limit_seconds=900)
 
         # Invalid: exceeds limit
         with pytest.raises(ValueError):
-            OptimizationConfig(time_limit_seconds=3601)
+            OptimizationConfig(time_limit_seconds=901)
 
         # Invalid: negative
         with pytest.raises(ValueError):

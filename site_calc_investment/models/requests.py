@@ -57,7 +57,7 @@ class OptimizationConfig(BaseModel):
     objective: Literal["maximize_profit", "minimize_cost", "maximize_self_consumption"] = Field(
         "maximize_profit", description="Optimization objective"
     )
-    time_limit_seconds: int = Field(3600, gt=0, le=3600, description="Solver timeout (max 1 hour)")
+    time_limit_seconds: int = Field(300, gt=0, le=900, description="Solver timeout (max 15 minutes)")
     relax_binary_variables: bool = Field(
         True, description="Relax binary CHP variables to continuous (recommended for long horizons)"
     )

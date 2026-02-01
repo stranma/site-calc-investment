@@ -97,7 +97,7 @@ def main():
         investment_parameters=inv_params,
         optimization_config=OptimizationConfig(
             objective="maximize_npv",
-            time_limit_seconds=3600,  # 1 hour
+            time_limit_seconds=300,  # 5 minutes
             relax_binary_variables=True,
         ),
     )

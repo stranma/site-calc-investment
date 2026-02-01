@@ -86,7 +86,7 @@ def create_scenario(
         sites=[site],
         timespan=timespan,
         investment_parameters=inv_params,
-        optimization_config=OptimizationConfig(objective="maximize_npv", time_limit_seconds=3600),
+        optimization_config=OptimizationConfig(objective="maximize_npv", time_limit_seconds=300),
     )
 
     print(f"  Capacity:  {capacity_mwh:.0f} MWh")
