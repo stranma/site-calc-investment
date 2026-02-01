@@ -5,6 +5,26 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-02-01
+
+### Added
+- **SOC Anchoring**: New optional fields `soc_anchor_interval_hours` and `soc_anchor_target`
+  in `BatteryProperties` for improved long-term battery optimization
+- **Version Validation**: Client automatically checks server version compatibility and warns
+  if MAJOR.MINOR versions don't match
+- **Timeout Control**: Jobs can now specify custom timeout limits
+
+### Changed
+- **Default Solver**: Changed from CBC to HiGHS for 30-40% faster optimization times
+- Results are identical; no code changes required
+
+### Notes
+- All v1.0.x client code continues to work without modification
+- SOC anchoring is opt-in via new optional fields
+- Version warnings are informational only and don't affect functionality
+
+---
+
 ## [1.0.0] - 2024-12-15
 
 ### Added
