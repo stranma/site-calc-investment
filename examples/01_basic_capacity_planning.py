@@ -1,92 +1,98 @@
 """Basic Capacity Planning Example
 
-This example demonstrates a simple 10-year battery optimization
+This example demonstrates a simple 1-week battery optimization
 for capacity sizing and investment ROI analysis.
 """
 
+import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from site_calc_investment import (
     Battery,
-    BatteryProperties,
     ElectricityExport,
     ElectricityImport,
     InvestmentClient,
     InvestmentParameters,
     InvestmentPlanningRequest,
-    MarketExportProperties,
-    MarketImportProperties,
     OptimizationConfig,
     Site,
-    TimeSpan,
 )
+from site_calc_investment.models.requests import TimeSpanInvestment
 
 
 def main():
+    # Get credentials from environment
+    api_url = os.environ.get("INVESTMENT_API_URL_DEV") or os.environ.get("INVESTMENT_API_URL")
+    api_key = os.environ.get("INVESTMENT_API_KEY_DEV") or os.environ.get("INVESTMENT_API_KEY")
+
+    if not api_url or not api_key:
+        print("ERROR: Set INVESTMENT_API_URL and INVESTMENT_API_KEY environment variables")
+        return
+
     # Initialize client
     client = InvestmentClient(
-        base_url="https://api.site-calc.example.com",
-        api_key="inv_your_api_key_here",
+        base_url=api_url,
+        api_key=api_key,
     )
 
-    # Create 10-year planning horizon (1-hour resolution)
-    timespan = TimeSpan.for_years(start_year=2025, years=10)
-    print(f"Planning horizon: {timespan.years} years ({timespan.intervals} hourly intervals)")
+    # Create 1-week planning horizon (1-hour resolution)
+    timespan = TimeSpanInvestment(
+        start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
+        intervals=168,  # 1 week = 7 days x 24 hours
+    )
+    print(f"Planning horizon: {timespan.intervals} hourly intervals ({timespan.intervals / 24:.0f} days)")
 
-    # Generate simple price profile with 2% annual escalation
-    base_hourly_prices = []
-    for hour in range(24):
-        # Higher prices during day (peak)
-        if 9 <= hour <= 20:
-            price = 40.0
+    # Generate price profile with day/night pattern
+    prices = []
+    for hour in range(168):
+        hour_of_day = hour % 24
+        if 9 <= hour_of_day <= 20:
+            prices.append(80.0)  # Day: high price
         else:
-            price = 25.0
-        base_hourly_prices.append(price)
+            prices.append(30.0)  # Night: low price
 
-    # Extend to 10 years with 2% annual escalation
-    prices_10y = []
-    for year in range(10):
-        escalation_factor = 1.02**year
-        year_prices = [p * escalation_factor for p in base_hourly_prices] * 365
-        prices_10y.extend(year_prices)
-
-    print(f"Price profile generated: {len(prices_10y)} values")
-    print(f"  Year 1 avg: €{sum(prices_10y[:8760]) / 8760:.2f}/MWh")
-    print(f"  Year 10 avg: €{sum(prices_10y[-8760:]) / 8760:.2f}/MWh")
+    print(f"Price profile generated: {len(prices)} values")
+    print("  Day price: EUR 80/MWh, Night price: EUR 30/MWh")
 
     # Define 10 MW / 20 MWh battery (2-hour duration)
     battery = Battery(
         name="Battery1",
-        properties=BatteryProperties(
-            capacity=20.0,  # MWh
-            max_power=10.0,  # MW (2-hour discharge)
-            efficiency=0.90,  # 90% round-trip
-            initial_soc=0.5,  # Start at 50%
-        ),
+        properties={
+            "capacity": 20.0,  # MWh
+            "max_power": 10.0,  # MW (2-hour discharge)
+            "efficiency": 0.90,  # 90% round-trip
+            "initial_soc": 0.5,  # Start at 50%
+        },
     )
 
     # Market devices (grid connections)
     grid_import = ElectricityImport(
-        name="GridImport", properties=MarketImportProperties(price=prices_10y, max_import=20.0)
+        name="GridImport",
+        properties={"price": prices, "max_import": 20.0},
     )
 
     grid_export = ElectricityExport(
-        name="GridExport", properties=MarketExportProperties(price=prices_10y, max_export=20.0)
+        name="GridExport",
+        properties={"price": prices, "max_export": 20.0},
     )
 
     # Create site
     site = Site(
         site_id="battery_investment_site",
-        description="10-year battery capacity planning",
+        description="Battery capacity planning example",
         devices=[battery, grid_import, grid_export],
     )
 
     # Investment parameters
     inv_params = InvestmentParameters(
         discount_rate=0.05,  # 5% discount rate
+        project_lifetime_years=10,  # Required field
         device_capital_costs={
-            "Battery1": 2_000_000  # €2M CAPEX (€100/kWh)
+            "Battery1": 2_000_000  # EUR 2M CAPEX (EUR 100/kWh)
         },
         device_annual_opex={
-            "Battery1": 20_000  # €20k/year O&M
+            "Battery1": 20_000  # EUR 20k/year O&M
         },
     )
 
@@ -96,76 +102,71 @@ def main():
         timespan=timespan,
         investment_parameters=inv_params,
         optimization_config=OptimizationConfig(
-            objective="maximize_npv",
-            time_limit_seconds=300,  # 5 minutes
+            objective="maximize_profit",  # Options: maximize_profit, minimize_cost, maximize_self_consumption
+            time_limit_seconds=300,  # 5 minutes max
             relax_binary_variables=True,
         ),
     )
 
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 60)
     print("Submitting optimization job...")
-    print("=" * 80)
+    print("=" * 60)
 
     # Submit job
     job = client.create_planning_job(request)
     print(f"\nJob ID: {job.job_id}")
     print(f"Status: {job.status}")
 
-    # Wait for completion (with progress updates)
+    # Wait for completion
     print("\nWaiting for optimization to complete...")
-    print("(This may take 15-60 minutes for 10-year horizon)")
 
     result = client.wait_for_completion(
         job.job_id,
-        poll_interval=30,  # Check every 30 seconds
-        timeout=7200,  # 2 hour maximum
+        poll_interval=5,  # Check every 5 seconds
+        timeout=600,  # 10 minute maximum
     )
 
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 60)
     print("OPTIMIZATION RESULTS")
-    print("=" * 80)
+    print("=" * 60)
 
     # Summary
     summary = result.summary
     print(f"\nSolver Status: {summary.solver_status}")
-    print(f"Solve Time: {summary.solve_time_seconds:.1f}s ({summary.solve_time_seconds / 60:.1f} min)")
+    print(f"Solve Time: {summary.solve_time_seconds:.1f}s")
 
-    # Financial metrics
-    if summary.investment_metrics:
-        metrics = summary.investment_metrics
-        print("\nFINANCIAL METRICS:")
-        print(f"  Total Revenue (10y):  €{metrics.total_revenue_period:>15,.0f}")
-        print(f"  Total Costs (10y):    €{metrics.total_costs_period:>15,.0f}")
-        print(f"  Net Profit (10y):     €{summary.expected_profit:>15,.0f}")
-        print(f"\n  NPV:                  €{metrics.npv:>15,.0f}")
-        print(f"  IRR:                   {metrics.irr * 100:>15.2f}%")
-        print(f"  Payback Period:        {metrics.payback_period_years:>15.1f} years")
+    if summary.expected_profit is not None:
+        print(f"Expected Profit: EUR {summary.expected_profit:,.2f}")
 
-        # Annual breakdown
-        if metrics.annual_revenue_by_year:
-            print("\nANNUAL BREAKDOWN:")
-            revenues = metrics.annual_revenue_by_year
-            costs = metrics.annual_costs_by_year
-            for year, (revenue, cost) in enumerate(zip(revenues, costs), 1):
-                print(f"  Year {year:2d}:  Revenue €{revenue:>10,.0f}  |  Cost €{cost:>10,.0f}")
+    # Investment metrics (if available)
+    if result.investment_metrics:
+        metrics = result.investment_metrics
+        print("\nINVESTMENT METRICS:")
+        if metrics.total_revenue_10y is not None:
+            print(f"  Total Revenue (10y):  EUR {metrics.total_revenue_10y:>15,.0f}")
+        if metrics.total_costs_10y is not None:
+            print(f"  Total Costs (10y):    EUR {metrics.total_costs_10y:>15,.0f}")
+        if metrics.npv is not None:
+            print(f"  NPV:                  EUR {metrics.npv:>15,.0f}")
+        if metrics.irr is not None:
+            print(f"  IRR:                       {metrics.irr * 100:>15.2f}%")
+        if metrics.payback_period_years is not None:
+            print(f"  Payback Period:            {metrics.payback_period_years:>15.1f} years")
 
-    # Device schedules (first and last 24 hours)
-    site_result = result.sites["battery_investment_site"]
-    battery_schedule = site_result.device_schedules["Battery1"]
+    # Device schedules (first 24 hours)
+    site_result = result.sites.get("battery_investment_site")
+    if site_result:
+        battery_schedule = site_result.device_schedules.get("Battery1")
+        if battery_schedule and battery_schedule.flows.get("electricity"):
+            print("\nBATTERY OPERATION (First 24 hours):")
+            el_flow = battery_schedule.flows["electricity"]
+            soc = battery_schedule.soc or []
 
-    print("\nBATTERY OPERATION (First 24 hours):")
-    el_flow = battery_schedule.flows["electricity"]
-    soc = battery_schedule.soc
+            for hour in range(min(24, len(el_flow))):
+                soc_str = f"{soc[hour]:.1%}" if hour < len(soc) else "N/A"
+                print(f"  Hour {hour:2d}:  Power {el_flow[hour]:>7.2f} MW  |  SOC {soc_str}")
 
-    for hour in range(24):
-        print(f"  Hour {hour:2d}:  Power {el_flow[hour]:>6.2f} MW  |  SOC {soc[hour]:>5.1%}")
-
-    print("\nBATTERY OPERATION (Last 24 hours):")
-    for hour in range(-24, 0):
-        actual_hour = hour % 24
-        print(f"  Hour {actual_hour:2d}:  Power {el_flow[hour]:>6.2f} MW  |  SOC {soc[hour]:>5.1%}")
-
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 60)
 
 
 if __name__ == "__main__":
