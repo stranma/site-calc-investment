@@ -114,7 +114,7 @@ To enable `pip install site-calc-investment`:
      - Owner: `YOUR-GITHUB-USERNAME`
      - Repository name: `site-calc-investment`
      - Workflow name: `publish.yml`
-     - Environment name: (leave empty)
+     - Environment name: `pypi`
 
 3. **Done!** No API tokens needed (uses trusted publishing)
 

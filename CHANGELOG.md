@@ -5,6 +5,19 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-02-03
+
+### Fixed
+- **README Quick Start**: Fixed example code to use correct model classes and valid parameter values
+  - Use `TimeSpanInvestment` instead of `TimeSpan`
+  - Use valid `objective` values (`maximize_profit`, `minimize_cost`, `maximize_self_consumption`)
+  - Add required `project_lifetime_years` to `InvestmentParameters`
+  - Fix `time_limit_seconds` max value (900, not 3600)
+- **Capabilities table**: Corrected timeout from "3600 seconds" to "900 seconds (15 minutes) max"
+- **QUICK_START.md**: Added `pypi` environment name for Trusted Publishing setup
+
+---
+
 ## [1.2.0] - 2026-02-03
 
 ### Changed

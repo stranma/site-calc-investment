@@ -15,9 +15,10 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from site_calc_investment import InvestmentClient
 from site_calc_investment.models import (
-    TimeSpan, Resolution, Site, Battery, ElectricityImport,
+    Resolution, Site, Battery, ElectricityImport, ElectricityExport,
     InvestmentPlanningRequest, InvestmentParameters, OptimizationConfig
 )
+from site_calc_investment.models.requests import TimeSpanInvestment
 
 # Initialize client
 client = InvestmentClient(
@@ -25,12 +26,15 @@ client = InvestmentClient(
     api_key="inv_your_api_key_here"
 )
 
-# Create 10-year planning horizon (1-hour resolution)
-timespan = TimeSpan(
+# Create 1-week planning horizon (1-hour resolution)
+timespan = TimeSpanInvestment(
     start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
-    intervals=87600,  # 10 years × 8760 hours/year
+    intervals=168,  # 1 week = 7 days × 24 hours
     resolution=Resolution.HOUR_1
 )
+
+# Generate hourly prices (example: day/night pattern)
+prices = [30.0 if h % 24 < 6 else 80.0 if 8 <= h % 24 < 20 else 50.0 for h in range(168)]
 
 # Define devices (NO ancillary_services field)
 battery = Battery(
@@ -45,14 +49,20 @@ battery = Battery(
 
 grid_import = ElectricityImport(
     name="GridImport",
-    properties={"price": prices_10y, "max_import": 8.0}
+    properties={"price": prices, "max_import": 10.0}
 )
 
-site = Site(site_id="investment_site", devices=[battery, grid_import])
+grid_export = ElectricityExport(
+    name="GridExport",
+    properties={"price": prices, "max_export": 10.0}
+)
+
+site = Site(site_id="investment_site", devices=[battery, grid_import, grid_export])
 
 # Investment parameters
 inv_params = InvestmentParameters(
     discount_rate=0.05,
+    project_lifetime_years=10,                  # Required field
     device_capital_costs={"Battery1": 500000},  # €500k CAPEX
     device_annual_opex={"Battery1": 5000}       # €5k/year O&M
 )
@@ -63,19 +73,17 @@ request = InvestmentPlanningRequest(
     timespan=timespan,
     investment_parameters=inv_params,
     optimization_config=OptimizationConfig(
-        objective="maximize_npv",
-        time_limit_seconds=3600
+        objective="maximize_profit",  # Options: maximize_profit, minimize_cost, maximize_self_consumption
+        time_limit_seconds=300        # Max 900 seconds (15 min)
     )
 )
 
 job = client.create_planning_job(request)
-result = client.wait_for_completion(job.job_id, poll_interval=30, timeout=7200)
+result = client.wait_for_completion(job.job_id, poll_interval=5, timeout=600)
 
-# Display investment metrics
-metrics = result.summary.investment_metrics
-print(f"NPV: €{metrics.npv:,.0f}")
-print(f"IRR: {metrics.irr*100:.2f}%")
-print(f"Payback: {metrics.payback_period_years:.1f} years")
+print(f"Status: {result.status}")
+print(f"Solver: {result.summary.solver_status}")
+print(f"Profit: €{result.summary.expected_profit:,.2f}")
 ```
 
 ## Features
@@ -98,7 +106,7 @@ print(f"Payback: {metrics.payback_period_years:.1f} years")
 | Resolution | 1-hour only |
 | ANS Support | No |
 | Binary Variables | Relaxed to continuous |
-| Timeout | 3600 seconds (1 hour) |
+| Timeout | 900 seconds (15 minutes) max |
 
 ## Supported Devices
 
@@ -166,7 +174,7 @@ print(comparison)  # DataFrame with NPV, IRR, costs, revenues
 
 ## Documentation
 
-Full documentation available at: https://docs.site-calc.example.com/investment-client
+Full documentation available at: https://github.com/stranma/site-calc-investment#readme
 
 ## Examples
 
