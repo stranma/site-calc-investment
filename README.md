@@ -211,8 +211,8 @@ MIT License
 
 ## Support
 
-- Issues: https://github.com/site-calc/investment-client/issues
-- Documentation: https://docs.site-calc.example.com
+- Issues: https://github.com/stranma/site-calc-investment/issues
+- Documentation: https://github.com/stranma/site-calc-investment#readme
 
 ---
 
