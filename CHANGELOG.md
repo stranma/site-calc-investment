@@ -5,6 +5,17 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-02-03
+
+### Changed
+- **Repository URLs**: Updated package metadata to point to official GitHub repository
+- **CI/CD**: Added automatic PyPI publishing workflow on release tags
+
+### Fixed
+- Minor documentation improvements and URL corrections
+
+---
+
 ## [1.1.0] - 2026-02-01
 
 ### Added

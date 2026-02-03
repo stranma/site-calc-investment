@@ -41,10 +41,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/site-calc/investment-client"
-Documentation = "https://docs.site-calc.example.com/investment-client"
-Repository = "https://github.com/site-calc/investment-client"
-Issues = "https://github.com/site-calc/investment-client/issues"
+Homepage = "https://github.com/stranma/site-calc-investment"
+Documentation = "https://github.com/stranma/site-calc-investment#readme"
+Repository = "https://github.com/stranma/site-calc-investment"
+Issues = "https://github.com/stranma/site-calc-investment/issues"
 
 [build-system]
 requires = ["hatchling"]
