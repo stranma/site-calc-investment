@@ -125,6 +125,7 @@ def create_scenario(
 
 
 def main():
+    """Run scenario comparison example comparing three battery sizes."""
     print("=" * 60)
     print("BATTERY CAPACITY SIZING: SCENARIO COMPARISON")
     print("=" * 60)

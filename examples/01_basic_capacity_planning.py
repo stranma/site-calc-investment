@@ -22,6 +22,7 @@ from site_calc_investment.models.requests import TimeSpanInvestment
 
 
 def main():
+    """Run basic capacity planning example with 1-week battery optimization."""
     # Get credentials from environment
     api_url = os.environ.get("INVESTMENT_API_URL_DEV") or os.environ.get("INVESTMENT_API_URL")
     api_key = os.environ.get("INVESTMENT_API_KEY_DEV") or os.environ.get("INVESTMENT_API_KEY")
