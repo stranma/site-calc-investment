@@ -53,7 +53,7 @@ def main():
             prices.append(30.0)  # Night: low price
 
     print(f"Price profile generated: {len(prices)} values")
-    print(f"  Day price: EUR 80/MWh, Night price: EUR 30/MWh")
+    print("  Day price: EUR 80/MWh, Night price: EUR 30/MWh")
 
     # Define 10 MW / 20 MWh battery (2-hour duration)
     battery = Battery(

@@ -153,7 +153,7 @@ def main():
     prices = create_prices(days=7)
 
     print(f"\nPrices: {len(prices)} hourly values")
-    print(f"  Day price: EUR 80/MWh, Night price: EUR 30/MWh")
+    print("  Day price: EUR 80/MWh, Night price: EUR 30/MWh")
 
     # Test three capacities
     capacities = [10.0, 20.0, 30.0]  # MWh
