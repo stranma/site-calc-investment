@@ -487,3 +487,54 @@ class TestSaveDataFile:
 
         review = mcp_server.review_scenario(scenario_id=sid)
         assert len(review["devices"]) == 1
+
+
+class TestGetVersion:
+    """Tests for get_version tool."""
+
+    def test_returns_client_version(self) -> None:
+        result = mcp_server.get_version()
+        assert "client_version" in result
+        assert result["client_version"] == mcp_server.__version__
+
+    def test_server_unreachable(self) -> None:
+        with patch.object(mcp_server, "_get_client", side_effect=Exception("Connection refused")):
+            result = mcp_server.get_version()
+        assert result["client_version"] == mcp_server.__version__
+        assert result["server_api_version"] == "unavailable"
+        assert "compatible" not in result
+
+    def test_server_compatible(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        client_api = ".".join(mcp_server.__version__.split(".")[:2])
+        mock_response.json.return_value = {"api_version": client_api}
+        mock_client = MagicMock()
+        mock_client._client.get.return_value = mock_response
+        with patch.object(mcp_server, "_get_client", return_value=mock_client):
+            result = mcp_server.get_version()
+        assert result["server_api_version"] == client_api
+        assert result["compatible"] is True
+
+    def test_server_incompatible(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"api_version": "9.9"}
+        mock_client = MagicMock()
+        mock_client._client.get.return_value = mock_response
+        with patch.object(mcp_server, "_get_client", return_value=mock_client):
+            result = mcp_server.get_version()
+        assert result["server_api_version"] == "9.9"
+        assert result["compatible"] is False
+
+    def test_server_health_no_api_version(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"status": "healthy"}
+        mock_client = MagicMock()
+        mock_client._client.get.return_value = mock_response
+        with patch.object(mcp_server, "_get_client", return_value=mock_client):
+            result = mcp_server.get_version()
+        assert result["client_version"] == mcp_server.__version__
+        assert "server_api_version" not in result
+        assert "compatible" not in result
