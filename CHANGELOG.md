@@ -5,6 +5,22 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-02-04
+
+### Added
+- **MCP Server**: FastMCP-based MCP server exposing 14 tools for LLM-driven investment planning
+  - Stateful builder pattern: create scenario -> add devices -> set timespan -> review -> submit -> get results
+  - All 10 device types supported with data shorthand (scalar expansion, CSV/JSON file loading)
+  - 3 result detail levels: summary, monthly, full
+  - Install via `pip install site-calc-investment[mcp]`
+  - CLI entry point: `site-calc-investment-mcp`
+- **`get_device_schema` tool**: Returns property schemas for each device type with types, units, and examples
+
+### Changed
+- Package now has `[mcp]` optional dependency group (`fastmcp>=2.0`)
+
+---
+
 ## [1.2.1] - 2026-02-03
 
 ### Fixed

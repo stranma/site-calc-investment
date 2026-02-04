@@ -1,6 +1,6 @@
 [project]
 name = "site-calc-investment"
-version = "1.2.1"
+version = "1.2.2"
 description = "Python client for Site-Calc investment planning (capacity sizing, ROI analysis)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,6 +29,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = ["fastmcp>=2.0"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
@@ -38,7 +39,11 @@ dev = [
     "mypy>=1.0",
     "pandas>=2.0",  # For scenario comparison
     "tzdata>=2024.1",  # Timezone data for Windows
+    "fastmcp>=2.0",  # For MCP server tests
 ]
+
+[project.scripts]
+site-calc-investment-mcp = "site_calc_investment.mcp:main"
 
 [project.urls]
 Homepage = "https://github.com/stranma/site-calc-investment"
