@@ -757,7 +757,8 @@ def get_version() -> dict:
             if server_version:
                 result["server_api_version"] = server_version
                 client_api = ".".join(__version__.split(".")[:2])
-                result["compatible"] = client_api == server_version
+                server_api = ".".join(str(server_version).split(".")[:2])
+                result["compatible"] = client_api == server_api
     except Exception:
         result["server_api_version"] = "unavailable"
 

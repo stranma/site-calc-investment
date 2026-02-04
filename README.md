@@ -204,10 +204,10 @@ Add to `claude_desktop_config.json`:
 
 ### ChatGPT Configuration
 
-ChatGPT supports MCP via HTTP transport (not stdio). This requires:
+ChatGPT supports MCP via streaming HTTP or SSE (stdio is not supported). This requires:
 
-- ChatGPT **Pro, Plus, Business, Enterprise, or Education** plan
-- **Developer Mode** enabled in ChatGPT settings
+- An eligible ChatGPT plan with Developer Mode access (**Pro, Plus, Business, Enterprise, or Education**). Business plan restricts Developer Mode to admins/owners; other plans may have similar admin gating.
+- **Developer Mode** enabled (navigate to **Settings** -- the exact path may vary by account type)
 
 **Step 1 -- Start the MCP server in HTTP mode:**
 
@@ -229,7 +229,7 @@ For production, deploy the server to a publicly accessible host instead.
 
 **Step 3 -- Add to ChatGPT:**
 
-1. Open ChatGPT > **Settings** > **Apps** > **Advanced** > Enable **Developer Mode**
+1. Open ChatGPT **Settings** > **Apps & Connectors** (or **Connectors**) > **Advanced settings** > Enable **Developer Mode**
 2. Click **Create app**
 3. Enter the ngrok HTTPS URL (e.g. `https://abc123.ngrok.io/mcp`) as the server endpoint
 4. Name: "Site-Calc Investment", Description: "Investment planning optimization tools"
