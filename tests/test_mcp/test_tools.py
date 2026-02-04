@@ -253,6 +253,10 @@ class TestGetJobResult:
         assert "device_summaries" in result
         assert "Battery1" in result["device_summaries"]
 
+    def test_get_result_invalid_detail_level(self) -> None:
+        with pytest.raises(ValueError, match="Invalid detail_level"):
+            mcp_server.get_job_result(job_id="job_123", detail_level="detailed")
+
     def test_get_result_full(self, mock_result_response: dict) -> None:
         mock_client = MagicMock()
         from site_calc_investment.models.responses import InvestmentPlanningResponse

@@ -247,6 +247,11 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
     :param detail_level: One of "summary", "monthly", "full" (default: "summary").
     :returns: Result dict at requested detail level.
     """
+    allowed_levels = {"summary", "monthly", "full"}
+    if detail_level not in allowed_levels:
+        raise ValueError(
+            f"Invalid detail_level '{detail_level}'. Must be one of: {', '.join(sorted(allowed_levels))}"
+        )
     client = _get_client()
     response = client.get_job_result(job_id)
 
