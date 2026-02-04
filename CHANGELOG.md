@@ -5,6 +5,25 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-02-04
+
+### Added
+- **`save_data_file` MCP tool**: New tool (#15) that writes generated data (price arrays, demand
+  profiles) to CSV files on the local filesystem. Solves the problem where the LLM cannot write
+  files directly but the MCP server can.
+  - Supports named columns with automatic `.csv` extension
+  - Relative paths resolve against `INVESTMENT_DATA_DIR` environment variable
+  - Returned file path can be used directly in `add_device` via `{"file": "...", "column": "..."}`
+- **`INVESTMENT_DATA_DIR` environment variable**: Optional config for `save_data_file` base directory
+- **MCP Server specification**: Full docs at `docs/MCP_SERVER_SPEC.md`
+
+### Changed
+- MCP server instructions updated to inform the LLM about `save_data_file` capability
+- MCP tool count: 14 -> 15
+
+---
+
+
 ## [1.2.2] - 2026-02-04
 
 ### Added

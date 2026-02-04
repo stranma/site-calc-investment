@@ -1,6 +1,7 @@
 """Tests for MCP tool integration — end-to-end tool calls with mocked client."""
 
-from unittest.mock import MagicMock
+import os
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -439,3 +440,50 @@ class TestEndToEndWorkflow:
         scenario = mcp_server._store.get(sid)
         assert len(scenario.jobs) == 2
         assert len(scenario.devices) == 2
+
+
+class TestSaveDataFile:
+    """Tests for save_data_file tool."""
+
+    def test_save_basic(self, tmp_path: object) -> None:
+        """Tool returns dict with file_path, columns, rows, message."""
+        import pathlib
+
+        out = pathlib.Path(str(tmp_path)) / "tool_test.csv"
+        with patch("site_calc_investment.mcp.server.get_data_dir", return_value=None):
+            result = mcp_server.save_data_file(
+                file_path=str(out),
+                columns={"hour": [0.0, 1.0, 2.0], "price": [30.0, 40.0, 80.0]},
+            )
+        assert result["file_path"] == str(out)
+        assert result["columns"] == ["hour", "price"]
+        assert result["rows"] == 3
+        assert "3 rows" in result["message"]
+        assert os.path.isfile(result["file_path"])
+
+    def test_save_and_use_in_add_device(self, tmp_path: object) -> None:
+        """End-to-end: save file, then use it in add_device via file reference."""
+        import pathlib
+
+        out = pathlib.Path(str(tmp_path)) / "prices.csv"
+        prices = [50.0] * 8760
+        with patch("site_calc_investment.mcp.server.get_data_dir", return_value=None):
+            save_result = mcp_server.save_data_file(
+                file_path=str(out),
+                columns={"price_eur": prices},
+            )
+
+        # Create scenario and use the saved file
+        sc = mcp_server.create_scenario(name="SaveAndUse")
+        sid = sc["scenario_id"]
+        mcp_server.set_timespan(scenario_id=sid, start_year=2025)
+        result = mcp_server.add_device(
+            scenario_id=sid,
+            device_type="electricity_import",
+            name="Grid",
+            properties={"price": {"file": save_result["file_path"], "column": "price_eur"}, "max_import": 10.0},
+        )
+        assert isinstance(result, str)
+
+        review = mcp_server.review_scenario(scenario_id=sid)
+        assert len(review["devices"]) == 1

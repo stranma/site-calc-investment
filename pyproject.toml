@@ -1,6 +1,6 @@
 [project]
 name = "site-calc-investment"
-version = "1.2.2"
+version = "1.2.3"
 description = "Python client for Site-Calc investment planning (capacity sizing, ROI analysis)"
 readme = "README.md"
 requires-python = ">=3.10"
