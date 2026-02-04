@@ -2,7 +2,7 @@
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Literal, Optional, cast
 
 from site_calc_investment.models.common import Resolution
 from site_calc_investment.models.devices import (
@@ -143,14 +143,16 @@ def _build_device(config: DeviceConfig, expected_length: Optional[int]) -> Any:
 
     elif dtype == "heat_demand":
         props["max_demand_profile"] = resolve_price_or_profile(props["max_demand_profile"], expected_length)
-        if "min_demand_profile" in props and not isinstance(props["min_demand_profile"], (int, float)):
-            props["min_demand_profile"] = resolve_price_or_profile(props["min_demand_profile"], expected_length)
+        if "min_demand_profile" in props and props["min_demand_profile"] is not None:
+            if not isinstance(props["min_demand_profile"], (int, float)):
+                props["min_demand_profile"] = resolve_price_or_profile(props["min_demand_profile"], expected_length)
         return HeatDemand(name=config.name, properties=DemandProperties(**props))
 
     elif dtype == "electricity_demand":
         props["max_demand_profile"] = resolve_price_or_profile(props["max_demand_profile"], expected_length)
-        if "min_demand_profile" in props and not isinstance(props["min_demand_profile"], (int, float)):
-            props["min_demand_profile"] = resolve_price_or_profile(props["min_demand_profile"], expected_length)
+        if "min_demand_profile" in props and props["min_demand_profile"] is not None:
+            if not isinstance(props["min_demand_profile"], (int, float)):
+                props["min_demand_profile"] = resolve_price_or_profile(props["min_demand_profile"], expected_length)
         return ElectricityDemand(name=config.name, properties=DemandProperties(**props))
 
     elif dtype == "electricity_import":
@@ -258,6 +260,12 @@ class ScenarioStore:
 
         :returns: Summary string with interval count.
         """
+        if years < 1:
+            raise ValueError("Timespan must be at least 1 year.")
+        if years * 8760 > 100_000:
+            raise ValueError(
+                f"Timespan of {years} years ({years * 8760} intervals) exceeds the 100,000 interval limit."
+            )
         scenario = self.get(scenario_id)
         scenario.timespan = TimespanConfig(start_year=start_year, years=years)
         intervals = years * 8760
@@ -348,7 +356,7 @@ class ScenarioStore:
     def build_request(
         self,
         scenario_id: str,
-        objective: str = "maximize_profit",
+        objective: Literal["maximize_profit", "minimize_cost", "maximize_self_consumption"] = "maximize_profit",
         solver_timeout: int = 300,
     ) -> InvestmentPlanningRequest:
         """Convert draft scenario to an InvestmentPlanningRequest.
@@ -363,10 +371,13 @@ class ScenarioStore:
             raise ValueError("Cannot submit: no timespan set. Use set_timespan first.")
 
         ts_config = scenario.timespan
-        timespan = TimeSpanInvestment.for_years(
-            start_year=ts_config.start_year,
-            years=ts_config.years,
-            resolution=Resolution.HOUR_1,
+        timespan = cast(
+            TimeSpanInvestment,
+            TimeSpanInvestment.for_years(
+                start_year=ts_config.start_year,
+                years=ts_config.years,
+                resolution=Resolution.HOUR_1,
+            ),
         )
         expected_length = ts_config.years * 8760
 
@@ -384,6 +395,7 @@ class ScenarioStore:
         opt_config = OptimizationConfig(
             objective=objective,
             time_limit_seconds=min(solver_timeout, 900),
+            relax_binary_variables=True,
         )
 
         inv_params = None
@@ -393,6 +405,9 @@ class ScenarioStore:
             inv_params = InvestmentParameters(
                 discount_rate=ip.discount_rate,
                 project_lifetime_years=lifetime,
+                investment_budget=None,
+                carbon_price=None,
+                price_escalation_rate=None,
                 device_capital_costs=ip.device_capital_costs,
                 device_annual_opex=ip.device_annual_opex,
             )

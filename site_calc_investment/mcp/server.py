@@ -1,6 +1,6 @@
 """FastMCP server with all tool definitions for investment planning."""
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional, cast
 
 from fastmcp import FastMCP
 
@@ -195,9 +195,13 @@ def submit_scenario(
     :returns: Dict with job_id and initial status.
     """
     client = _get_client()
+    objective_literal = cast(
+        Literal["maximize_profit", "minimize_cost", "maximize_self_consumption"],
+        objective,
+    )
     request = _store.build_request(
         scenario_id=scenario_id,
-        objective=objective,
+        objective=objective_literal,
         solver_timeout=solver_timeout,
     )
     job = client.create_planning_job(request)
@@ -300,7 +304,7 @@ def _build_device_summaries(response: Any, detail_level: str) -> dict[str, Any]:
                 total = sum(flow_data)
                 dev_summary[f"total_{material}_mwh"] = round(total, 2)
 
-            if schedule.soc is not None:
+            if schedule.soc:
                 dev_summary["avg_soc"] = round(sum(schedule.soc) / len(schedule.soc), 3)
 
             if detail_level == "monthly" and schedule.flows:

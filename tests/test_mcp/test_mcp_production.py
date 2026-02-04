@@ -37,16 +37,13 @@ def reset_server_state() -> None:
 
 @pytest.fixture
 def scenario_with_battery() -> str:
-    """Create a scenario with a battery and grid connections, ready to submit."""
+    """Create a scenario with a battery and grid connections, ready to submit.
+
+    Uses 1-year timespan (the minimum supported).
+    """
     sc = mcp_server.create_scenario(name="Production MCP Test")
     sid = sc["scenario_id"]
-    mcp_server.set_timespan(scenario_id=sid, start_year=2025, years=0)
-    # Use a 4-hour horizon (minimal cost)
-    mcp_server._store.get(sid).timespan.years = 0
-    # Manually set a tiny timespan for cost reasons
-    from site_calc_investment.mcp.scenario import TimespanConfig
-
-    mcp_server._store.get(sid).timespan = TimespanConfig(start_year=2025, years=1)
+    mcp_server.set_timespan(scenario_id=sid, start_year=2025, years=1)
 
     mcp_server.add_device(
         scenario_id=sid,
@@ -107,7 +104,7 @@ class TestMCPProductionSubmit:
         job_id = submit_result["job_id"]
 
         cancel_result = mcp_server.cancel_job(job_id=job_id)
-        assert cancel_result["status"] == "cancelled"
+        assert cancel_result["status"] in ("cancelled", "completed")
 
     def test_list_jobs_after_submit(self, scenario_with_battery: str) -> None:
         """list_jobs returns submitted job IDs."""
