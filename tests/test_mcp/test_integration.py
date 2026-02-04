@@ -50,7 +50,7 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_list_tools(client: Client) -> None:
-    """All 14 tools are registered and discoverable via MCP protocol."""
+    """All 15 tools are registered and discoverable via MCP protocol."""
     tools = await client.list_tools()
     tool_names = {t.name for t in tools}
     expected = {
@@ -68,6 +68,7 @@ async def test_list_tools(client: Client) -> None:
         "cancel_job",
         "list_jobs",
         "get_device_schema",
+        "save_data_file",
     }
     assert tool_names == expected, f"Missing tools: {expected - tool_names}, Extra: {tool_names - expected}"
 
@@ -215,6 +216,27 @@ async def test_all_device_types_via_mcp(client: Client) -> None:
     review = _parse_result(await client.call_tool("review_scenario", {"scenario_id": sid}))
     assert len(review["devices"]) == 10
     assert "Valid" in review["validation"]
+
+
+@pytest.mark.asyncio
+async def test_save_data_file_via_mcp(client: Client, tmp_path: object) -> None:
+    """save_data_file writes CSV and returns metadata via MCP protocol."""
+    import pathlib
+    from unittest.mock import patch
+
+    out = pathlib.Path(str(tmp_path)) / "mcp_save_test.csv"
+    with patch("site_calc_investment.mcp.server.get_data_dir", return_value=None):
+        result = await client.call_tool(
+            "save_data_file",
+            {
+                "file_path": str(out),
+                "columns": {"hour": [0.0, 1.0, 2.0], "price_eur": [30.5, 42.1, 55.0]},
+            },
+        )
+    data = _parse_result(result)
+    assert data["rows"] == 3
+    assert data["columns"] == ["hour", "price_eur"]
+    assert pathlib.Path(data["file_path"]).exists()
 
 
 @pytest.mark.asyncio

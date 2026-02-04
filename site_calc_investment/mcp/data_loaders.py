@@ -169,3 +169,73 @@ def _find_first_numeric_column(headers: list[str], file_path: str) -> int:
             if hint in h_lower:
                 return i
     return 0
+
+
+def _resolve_save_path(file_path: str, data_dir: Optional[str] = None) -> str:
+    """Resolve a file path for saving, applying data_dir for relative paths.
+
+    :param file_path: Filename or path (relative or absolute).
+    :param data_dir: Base directory for relative paths (or None for cwd).
+    :returns: Absolute path string.
+    :raises ValueError: If the extension is present but not '.csv'.
+    """
+    _, ext = os.path.splitext(file_path)
+    if ext and ext.lower() != ".csv":
+        raise ValueError(f"Only .csv files are supported, got '{ext}'. Use a .csv extension or omit the extension.")
+    if not ext:
+        file_path = file_path + ".csv"
+
+    if os.path.isabs(file_path):
+        return file_path
+
+    base = data_dir if data_dir else os.getcwd()
+    return os.path.abspath(os.path.join(base, file_path))
+
+
+def save_csv(
+    file_path: str,
+    columns: dict[str, list[float]],
+    data_dir: Optional[str] = None,
+    overwrite: bool = False,
+) -> str:
+    """Save column data as a CSV file.
+
+    :param file_path: Filename or path. Relative paths resolve against data_dir (or cwd).
+        Extension '.csv' is appended if missing.
+    :param columns: Named columns of numeric data. All must have the same length.
+    :param data_dir: Base directory for relative paths.
+    :param overwrite: Allow overwriting an existing file (default: False).
+    :returns: Absolute path to the saved file.
+    :raises ValueError: If columns are empty, have no rows, or have mismatched lengths.
+    :raises FileExistsError: If file exists and overwrite is False.
+    """
+    if not columns:
+        raise ValueError("columns must not be empty -- provide at least one named column.")
+
+    lengths = {name: len(vals) for name, vals in columns.items()}
+    unique_lengths = set(lengths.values())
+
+    if unique_lengths == {0}:
+        raise ValueError("All columns have 0 rows -- provide at least one row of data.")
+    if len(unique_lengths) > 1:
+        raise ValueError(f"All columns must have the same length, got: {lengths}")
+
+    resolved = _resolve_save_path(file_path, data_dir)
+
+    if not overwrite and os.path.exists(resolved):
+        raise FileExistsError(f"File already exists: {resolved}. Set overwrite=True to replace it.")
+
+    parent = os.path.dirname(resolved)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    col_names = list(columns.keys())
+    row_count = len(next(iter(columns.values())))
+
+    with open(resolved, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(col_names)
+        for i in range(row_count):
+            writer.writerow([columns[name][i] for name in col_names])
+
+    return resolved

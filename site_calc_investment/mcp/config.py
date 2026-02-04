@@ -2,6 +2,12 @@
 
 import os
 from dataclasses import dataclass
+from typing import Optional
+
+
+def get_data_dir() -> Optional[str]:
+    """Get the configured data directory from INVESTMENT_DATA_DIR, or None."""
+    return os.environ.get("INVESTMENT_DATA_DIR") or None
 
 
 @dataclass(frozen=True)

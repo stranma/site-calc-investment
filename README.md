@@ -172,6 +172,60 @@ comparison = compare_scenarios(
 print(comparison)  # DataFrame with NPV, IRR, costs, revenues
 ```
 
+## MCP Server (Claude Desktop Integration)
+
+The package includes an MCP server for use with Claude Desktop and other LLM tools.
+
+### Installation
+
+```bash
+pip install site-calc-investment[mcp]
+```
+
+### Claude Desktop Configuration
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "site-calc-investment": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/client-investment", "site-calc-investment-mcp"],
+      "env": {
+        "INVESTMENT_API_URL": "http://your-api-url",
+        "INVESTMENT_API_KEY": "inv_your_key_here",
+        "INVESTMENT_DATA_DIR": "/path/to/data/directory"
+      }
+    }
+  }
+}
+```
+
+### Tools (15)
+
+| Tool | Description |
+|------|-------------|
+| `create_scenario` | Create a new draft scenario |
+| `add_device` | Add a device (battery, CHP, PV, etc.) |
+| `set_timespan` | Set optimization time horizon |
+| `set_investment_params` | Set financial parameters (NPV, IRR) |
+| `review_scenario` | Review scenario before submission |
+| `remove_device` | Remove a device |
+| `delete_scenario` | Delete a scenario |
+| `list_scenarios` | List all draft scenarios |
+| `submit_scenario` | Submit for optimization |
+| `get_job_status` | Check job progress |
+| `get_job_result` | Get optimization results |
+| `cancel_job` | Cancel a job |
+| `list_jobs` | List all jobs |
+| `get_device_schema` | Get device property schema |
+| `save_data_file` | Save generated data as CSV |
+
+`save_data_file` lets the LLM write generated data (price arrays, demand profiles) to local CSV files, which can then be referenced in `add_device` properties.
+
+See [docs/MCP_SERVER_SPEC.md](docs/MCP_SERVER_SPEC.md) for full specification.
+
 ## Documentation
 
 Full documentation available at: https://github.com/stranma/site-calc-investment#readme

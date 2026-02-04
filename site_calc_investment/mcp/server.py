@@ -5,14 +5,21 @@ from typing import Any, Literal, Optional, cast
 from fastmcp import FastMCP
 
 from site_calc_investment.api.client import InvestmentClient
-from site_calc_investment.mcp.config import Config
+from site_calc_investment.mcp.config import Config, get_data_dir
+from site_calc_investment.mcp.data_loaders import save_csv
 from site_calc_investment.mcp.scenario import ScenarioStore
 
 mcp = FastMCP(
     "site-calc-investment",
-    instructions="Investment planning optimization tools for energy systems. "
-    "Build scenarios with batteries, CHP, PV, and market connections, "
-    "then submit for optimization to find optimal dispatch and ROI.",
+    instructions=(
+        "Investment planning optimization tools for energy systems. "
+        "Build scenarios with batteries, CHP, PV, and market connections, "
+        "then submit for optimization to find optimal dispatch and ROI.\n\n"
+        "IMPORTANT: Use save_data_file to write generated data (price arrays, "
+        "demand profiles) to the local filesystem BEFORE referencing them in "
+        "add_device. This MCP server runs locally and has filesystem access -- "
+        "you do not need to ask the user to save files manually."
+    ),
 )
 
 _store = ScenarioStore()
@@ -360,6 +367,52 @@ def list_jobs() -> list[dict[str, Any]]:
     return result
 
 
+# --- Data File Tools ---
+
+
+def save_data_file(
+    file_path: str,
+    columns: dict[str, list[float]],
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Save generated data to a CSV file on the local filesystem.
+
+    This tool exists because you (the LLM) cannot write files directly --
+    but this MCP server runs on the user's local machine and CAN.
+    Use it to persist generated data arrays (prices, demand profiles, etc.)
+    so they can be referenced in add_device via {"file": "<path>", "column": "<name>"}.
+
+    Typical workflow:
+    1. Generate price/demand data as arrays
+    2. Call save_data_file to write them as CSV
+    3. Use the returned file_path in add_device properties
+
+    :param file_path: Filename or path (e.g., "prices_2025.csv").
+        Relative paths resolve against INVESTMENT_DATA_DIR env var (or cwd).
+        Extension '.csv' is appended if missing.
+    :param columns: Named columns of numeric data.
+        Example: {"hour": [0, 1, 2, ...], "price_eur_mwh": [30.5, 42.1, ...]}.
+        All columns must have the same length.
+    :param overwrite: Allow overwriting an existing file (default: False).
+    :returns: Dict with file_path (absolute), column names, and row count.
+    """
+    data_dir = get_data_dir()
+    saved_path = save_csv(
+        file_path=file_path,
+        columns=columns,
+        data_dir=data_dir,
+        overwrite=overwrite,
+    )
+    col_names = list(columns.keys())
+    row_count = len(next(iter(columns.values())))
+    return {
+        "file_path": saved_path,
+        "columns": col_names,
+        "rows": row_count,
+        "message": f"Saved {row_count} rows to {saved_path}",
+    }
+
+
 # --- Helper Tools ---
 
 
@@ -702,3 +755,4 @@ mcp.tool()(get_job_result)
 mcp.tool()(cancel_job)
 mcp.tool()(list_jobs)
 mcp.tool()(get_device_schema)
+mcp.tool()(save_data_file)
