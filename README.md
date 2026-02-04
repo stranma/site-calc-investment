@@ -178,9 +178,7 @@ The package includes an MCP server for use with Claude Desktop and other LLM too
 
 ### Installation
 
-```bash
-pip install site-calc-investment[mcp]
-```
+No manual install needed -- `uvx` handles it automatically via the Claude Desktop config below.
 
 ### Claude Desktop Configuration
 
@@ -190,17 +188,19 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "site-calc-investment": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/client-investment", "site-calc-investment-mcp"],
+      "command": "uvx",
+      "args": ["--from", "site-calc-investment[mcp]", "site-calc-investment-mcp"],
       "env": {
-        "INVESTMENT_API_URL": "http://your-api-url",
+        "INVESTMENT_API_URL": "https://api.site-calc.example.com",
         "INVESTMENT_API_KEY": "inv_your_key_here",
-        "INVESTMENT_DATA_DIR": "/path/to/data/directory"
+        "INVESTMENT_DATA_DIR": "C:\\path\\to\\data\\directory"
       }
     }
   }
 }
 ```
+
+`uvx` installs the package from PyPI into an isolated environment automatically.
 
 ### Tools (15)
 

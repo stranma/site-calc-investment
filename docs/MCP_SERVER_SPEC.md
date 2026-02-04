@@ -62,7 +62,30 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "site-calc-investment": {
-      "command": "C:\\Users\\Admin\\.local\\bin\\uv.exe",
+      "command": "uvx",
+      "args": [
+        "--from", "site-calc-investment[mcp]",
+        "site-calc-investment-mcp"
+      ],
+      "env": {
+        "INVESTMENT_API_URL": "https://api.site-calc.example.com",
+        "INVESTMENT_API_KEY": "inv_your_api_key_here",
+        "INVESTMENT_DATA_DIR": "C:\\my_source\\BESS_Optimization_Tool"
+      }
+    }
+  }
+}
+```
+
+`uvx` automatically installs the package from PyPI into an isolated environment and keeps it up to date.
+
+**For development** (run from local source instead of PyPI):
+
+```json
+{
+  "mcpServers": {
+    "site-calc-investment": {
+      "command": "uv",
       "args": [
         "run",
         "--directory", "C:\\my_source\\site-calc\\client-investment",
@@ -81,10 +104,17 @@ Add to `claude_desktop_config.json`:
 ### 2.3 Installation
 
 ```bash
+# Recommended: auto-install via uvx (no manual install needed)
+# Just use the Claude Desktop config above -- uvx handles everything.
+
+# Alternative: pre-install for faster startup
+uv tool install "site-calc-investment[mcp]"
+
+# Alternative: pip
 pip install site-calc-investment[mcp]
 ```
 
-Or with uv (recommended for development):
+For development:
 
 ```bash
 cd client-investment
