@@ -190,6 +190,24 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "site-calc-investment": {
+      "command": "uvx",
+      "args": ["--from", "site-calc-investment[mcp]", "site-calc-investment-mcp"],
+      "env": {
+        "INVESTMENT_API_URL": "http://your-api-url",
+        "INVESTMENT_API_KEY": "inv_your_key_here",
+        "INVESTMENT_DATA_DIR": "/path/to/data/directory"
+      }
+    }
+  }
+}
+```
+
+For local development against a source checkout, use `uv run --directory` instead:
+
+```json
+{
+  "mcpServers": {
+    "site-calc-investment": {
       "command": "uv",
       "args": ["run", "--directory", "/path/to/client-investment", "site-calc-investment-mcp"],
       "env": {

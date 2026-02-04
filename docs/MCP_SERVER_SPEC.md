@@ -62,7 +62,27 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "site-calc-investment": {
-      "command": "C:\\Users\\Admin\\.local\\bin\\uv.exe",
+      "command": "uvx",
+      "args": ["--from", "site-calc-investment[mcp]", "site-calc-investment-mcp"],
+      "env": {
+        "INVESTMENT_API_URL": "https://api.site-calc.example.com",
+        "INVESTMENT_API_KEY": "inv_your_api_key_here",
+        "INVESTMENT_DATA_DIR": "C:\\my_source\\BESS_Optimization_Tool"
+      }
+    }
+  }
+}
+```
+
+#### Development (local checkout)
+
+When working against a local checkout of the client package, use `uv run --directory` instead:
+
+```json
+{
+  "mcpServers": {
+    "site-calc-investment": {
+      "command": "uv",
       "args": [
         "run",
         "--directory", "C:\\my_source\\site-calc\\client-investment",
