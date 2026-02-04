@@ -4,6 +4,7 @@ from typing import Any, Literal, Optional, cast
 
 from fastmcp import FastMCP
 
+from site_calc_investment import __version__
 from site_calc_investment.api.client import InvestmentClient
 from site_calc_investment.mcp.config import Config, get_data_dir
 from site_calc_investment.mcp.data_loaders import save_csv
@@ -739,8 +740,33 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
     return schemas[dtype]
 
 
+def get_version() -> dict:
+    """Return site-calc-investment client version and server API version.
+
+    Shows the installed client package version. If the server is reachable,
+    also shows the server API version and whether they are compatible.
+    """
+    result: dict[str, Any] = {"client_version": __version__}
+
+    try:
+        client = _get_client()
+        response = client._client.get("/health")
+        if response.status_code == 200:
+            health = response.json()
+            server_version = health.get("api_version")
+            if server_version:
+                result["server_api_version"] = server_version
+                client_api = ".".join(__version__.split(".")[:2])
+                result["compatible"] = client_api == server_version
+    except Exception:
+        result["server_api_version"] = "unavailable"
+
+    return result
+
+
 # --- Register all functions as MCP tools ---
 
+mcp.tool()(get_version)
 mcp.tool()(create_scenario)
 mcp.tool()(add_device)
 mcp.tool()(set_timespan)

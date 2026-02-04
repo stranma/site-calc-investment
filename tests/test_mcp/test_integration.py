@@ -50,10 +50,11 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_list_tools(client: Client) -> None:
-    """All 15 tools are registered and discoverable via MCP protocol."""
+    """All 16 tools are registered and discoverable via MCP protocol."""
     tools = await client.list_tools()
     tool_names = {t.name for t in tools}
     expected = {
+        "get_version",
         "create_scenario",
         "add_device",
         "set_timespan",
