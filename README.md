@@ -172,9 +172,9 @@ comparison = compare_scenarios(
 print(comparison)  # DataFrame with NPV, IRR, costs, revenues
 ```
 
-## MCP Server (Claude Desktop Integration)
+## MCP Server (LLM Integration)
 
-The package includes an MCP server for use with Claude Desktop and other LLM tools.
+The package includes an MCP server for use with Claude Desktop, ChatGPT, and other MCP-compatible LLM tools.
 
 ### Installation
 
@@ -202,10 +202,47 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-### Tools (15)
+### ChatGPT Configuration
+
+ChatGPT supports MCP via HTTP transport (not stdio). This requires:
+
+- ChatGPT **Pro, Plus, Business, Enterprise, or Education** plan
+- **Developer Mode** enabled in ChatGPT settings
+
+**Step 1 -- Start the MCP server in HTTP mode:**
+
+```bash
+cd /path/to/client-investment
+INVESTMENT_API_URL="http://your-api-url" \
+INVESTMENT_API_KEY="inv_your_key_here" \
+INVESTMENT_DATA_DIR="/path/to/data" \
+uv run fastmcp run site_calc_investment.mcp.server:mcp --transport streamable-http --port 8000
+```
+
+**Step 2 -- Expose to the internet (for local development):**
+
+```bash
+ngrok http 8000
+```
+
+For production, deploy the server to a publicly accessible host instead.
+
+**Step 3 -- Add to ChatGPT:**
+
+1. Open ChatGPT > **Settings** > **Apps** > **Advanced** > Enable **Developer Mode**
+2. Click **Create app**
+3. Enter the ngrok HTTPS URL (e.g. `https://abc123.ngrok.io/mcp`) as the server endpoint
+4. Name: "Site-Calc Investment", Description: "Investment planning optimization tools"
+5. Click **Refresh** to load the tool list
+
+> **Note:** ChatGPT shows tool call details and may require manual confirmation for actions.
+> The `save_data_file` tool requires the server to have local filesystem access.
+
+### Tools (16)
 
 | Tool | Description |
 |------|-------------|
+| `get_version` | Get server and package version info |
 | `create_scenario` | Create a new draft scenario |
 | `add_device` | Add a device (battery, CHP, PV, etc.) |
 | `set_timespan` | Set optimization time horizon |
