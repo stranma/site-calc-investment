@@ -69,7 +69,7 @@ Add to `claude_desktop_config.json`:
         "site-calc-investment-mcp"
       ],
       "env": {
-        "INVESTMENT_API_URL": "http://site-calc-prod-alb-1240336044.eu-central-1.elb.amazonaws.com",
+        "INVESTMENT_API_URL": "https://api.site-calc.example.com",
         "INVESTMENT_API_KEY": "inv_your_api_key_here",
         "INVESTMENT_DATA_DIR": "C:\\my_source\\BESS_Optimization_Tool"
       }
