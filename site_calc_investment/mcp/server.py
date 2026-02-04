@@ -194,7 +194,6 @@ def submit_scenario(
     :param solver_timeout: Solver time limit in seconds (max 900).
     :returns: Dict with job_id and initial status.
     """
-    client = _get_client()
     objective_literal = cast(
         Literal["maximize_profit", "minimize_cost", "maximize_self_consumption"],
         objective,
@@ -204,6 +203,7 @@ def submit_scenario(
         objective=objective_literal,
         solver_timeout=solver_timeout,
     )
+    client = _get_client()
     job = client.create_planning_job(request)
     _store.record_job(scenario_id, job.job_id)
     return {"job_id": job.job_id, "status": job.status}
