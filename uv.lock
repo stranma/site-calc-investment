@@ -2128,7 +2128,7 @@ wheels = [
 
 [[package]]
 name = "site-calc-investment"
-version = "1.2.4"
+version = "1.2.5"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -2136,6 +2136,7 @@ dependencies = [
     { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pydantic" },
     { name = "python-dateutil" },
+    { name = "tzdata" },
 ]
 
 [package.optional-dependencies]
@@ -2149,7 +2150,6 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-timeout" },
     { name = "ruff" },
-    { name = "tzdata" },
 ]
 mcp = [
     { name = "fastmcp" },
@@ -2170,7 +2170,7 @@ requires-dist = [
     { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.2" },
     { name = "python-dateutil", specifier = ">=2.8" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1" },
-    { name = "tzdata", marker = "extra == 'dev'", specifier = ">=2024.1" },
+    { name = "tzdata", specifier = ">=2024.1" },
 ]
 
 [[package]]

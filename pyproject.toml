@@ -1,6 +1,6 @@
 [project]
 name = "site-calc-investment"
-version = "1.2.4"
+version = "1.2.5"
 description = "Python client for Site-Calc investment planning (capacity sizing, ROI analysis)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,6 +26,7 @@ dependencies = [
     "httpx>=0.24",
     "python-dateutil>=2.8",
     "numpy>=1.24",  # For financial calculations
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +39,6 @@ dev = [
     "ruff>=0.1",
     "mypy>=1.0",
     "pandas>=2.0",  # For scenario comparison
-    "tzdata>=2024.1",  # Timezone data for Windows
     "fastmcp>=2.0",  # For MCP server tests
 ]
 
