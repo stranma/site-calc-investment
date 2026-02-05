@@ -5,6 +5,30 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-02-05
+
+### Added
+- **`visualize_results` MCP tool**: New tool (#17) that generates an interactive HTML dashboard
+  from completed optimization results. Opens in browser with three tabs:
+  - **Financial Analysis**: KPI cards (NPV, IRR, payback, profit), annual revenue vs costs
+    bar chart, cumulative cash flow curve with payback marker
+  - **Energy Balance**: Stacked bar chart of generation/consumption with smart time aggregation
+    (hourly/daily/weekly/monthly), energy summary KPIs
+  - **Device Detail**: Interactive dispatch and SOC charts with hour-range drill-down controls
+- **`generate_dashboard` public API**: New function exported from `site_calc_investment` for
+  programmatic dashboard generation without MCP
+- **Visualization module** (`site_calc_investment.visualization`): Self-contained module with
+  zero new dependencies (uses Plotly.js via CDN, stdlib only)
+
+### Changed
+- MCP tool count: 16 -> 17
+
+### Security
+- Dashboard JSON embedding uses HTML-safe escaping to prevent XSS via `</script>` injection
+- Output filenames sanitize `job_id` to prevent path traversal attacks
+
+---
+
 ## [1.2.5] - 2026-02-05
 
 ### Fixed
