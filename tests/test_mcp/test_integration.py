@@ -50,7 +50,7 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_list_tools(client: Client) -> None:
-    """All 17 tools are registered and discoverable via MCP protocol."""
+    """All 18 tools are registered and discoverable via MCP protocol."""
     tools = await client.list_tools()
     tool_names = {t.name for t in tools}
     expected = {
@@ -70,6 +70,7 @@ async def test_list_tools(client: Client) -> None:
         "list_jobs",
         "get_device_schema",
         "save_data_file",
+        "fetch_url",
         "visualize_results",
     }
     assert tool_names == expected, f"Missing tools: {expected - tool_names}, Extra: {tool_names - expected}"

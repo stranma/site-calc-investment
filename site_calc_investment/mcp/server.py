@@ -7,7 +7,7 @@ from fastmcp import FastMCP
 from site_calc_investment import __version__
 from site_calc_investment.api.client import InvestmentClient
 from site_calc_investment.mcp.config import Config, get_data_dir
-from site_calc_investment.mcp.data_loaders import save_csv
+from site_calc_investment.mcp.data_loaders import fetch_url_to_file, save_csv
 from site_calc_investment.mcp.scenario import ScenarioStore
 
 mcp = FastMCP(
@@ -423,6 +423,38 @@ def save_data_file(
     }
 
 
+def fetch_url(
+    url: str,
+    file_path: Optional[str] = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Download a file from a URL and save it locally.
+
+    Downloads the file to INVESTMENT_DATA_DIR (or cwd). For CSV files, returns
+    metadata (row count, column names) so you can use the data immediately
+    with set_timespan(intervals=rows) and add_device(price={"file": file_path}).
+
+    Typical workflow with web data:
+    1. fetch_url(url="https://example.com/prices.csv")
+       -> returns {file_path, rows: 864, columns: ["date", "price_eur_mwh"], ...}
+    2. set_timespan(scenario_id, start_year=2026, intervals=864)
+    3. add_device(properties={"price": {"file": "<file_path>", "column": "price_eur_mwh"}, ...})
+
+    :param url: URL to download (http or https).
+    :param file_path: Local filename (default: derived from URL).
+        Relative paths resolve against INVESTMENT_DATA_DIR.
+    :param overwrite: Allow overwriting existing files (default: False).
+    :returns: Dict with file_path, url, rows, columns, columns_count, numeric_columns, message.
+    """
+    data_dir = get_data_dir()
+    return fetch_url_to_file(
+        url=url,
+        data_dir=data_dir,
+        file_path=file_path,
+        overwrite=overwrite,
+    )
+
+
 # --- Helper Tools ---
 
 
@@ -830,4 +862,5 @@ mcp.tool()(cancel_job)
 mcp.tool()(list_jobs)
 mcp.tool()(get_device_schema)
 mcp.tool()(save_data_file)
+mcp.tool()(fetch_url)
 mcp.tool()(visualize_results)
