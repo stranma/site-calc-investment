@@ -248,7 +248,7 @@ class TestGetCsvMetadata:
         with open(path, "w", newline="") as f:
             f.write("date,price_eur_mwh,volume\n")
             for i in range(5):
-                f.write(f"2026-01-{i+1},{30.0 + i},{100 + i}\n")
+                f.write(f"2026-01-{i + 1},{30.0 + i},{100 + i}\n")
         metadata = _get_csv_metadata(str(path))
         assert metadata["rows"] == 5
         assert metadata["columns"] == ["date", "price_eur_mwh", "volume"]

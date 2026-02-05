@@ -90,9 +90,7 @@ def add_device(
     )
 
 
-def set_timespan(
-    scenario_id: str, start_year: int, years: int = 1, intervals: Optional[int] = None
-) -> str:
+def set_timespan(scenario_id: str, start_year: int, years: int = 1, intervals: Optional[int] = None) -> str:
     """Set the optimization time horizon.
 
     Investment planning uses 1-hour resolution. One year = 8760 intervals.
@@ -108,9 +106,7 @@ def set_timespan(
     :param intervals: Exact interval count (1-100,000). Overrides years * 8760.
     :returns: Confirmation with interval count.
     """
-    return _store.set_timespan(
-        scenario_id=scenario_id, start_year=start_year, years=years, intervals=intervals
-    )
+    return _store.set_timespan(scenario_id=scenario_id, start_year=start_year, years=years, intervals=intervals)
 
 
 def set_investment_params(

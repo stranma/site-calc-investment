@@ -256,9 +256,7 @@ class ScenarioStore:
             f"Devices: {', '.join(d.name for d in scenario.devices) or '(none)'}"
         )
 
-    def set_timespan(
-        self, scenario_id: str, start_year: int, years: int = 1, intervals: Optional[int] = None
-    ) -> str:
+    def set_timespan(self, scenario_id: str, start_year: int, years: int = 1, intervals: Optional[int] = None) -> str:
         """Set the optimization time horizon.
 
         :param intervals: Explicit interval count (1-100,000). Overrides years * 8760 when provided.
@@ -266,9 +264,7 @@ class ScenarioStore:
         """
         if intervals is not None:
             if intervals < 1 or intervals > 100_000:
-                raise ValueError(
-                    f"intervals must be between 1 and 100,000, got {intervals}."
-                )
+                raise ValueError(f"intervals must be between 1 and 100,000, got {intervals}.")
             effective_intervals = intervals
         else:
             if years < 1:
@@ -281,9 +277,7 @@ class ScenarioStore:
 
         scenario = self.get(scenario_id)
         scenario.timespan = TimespanConfig(start_year=start_year, years=years, intervals=intervals)
-        return (
-            f"Timespan set: {start_year}, {effective_intervals} intervals (1h resolution)"
-        )
+        return f"Timespan set: {start_year}, {effective_intervals} intervals (1h resolution)"
 
     def set_investment_params(
         self,
