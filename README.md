@@ -216,7 +216,7 @@ cd /path/to/client-investment
 INVESTMENT_API_URL="http://your-api-url" \
 INVESTMENT_API_KEY="inv_your_key_here" \
 INVESTMENT_DATA_DIR="/path/to/data" \
-uv run fastmcp run site_calc_investment.mcp.server:mcp --transport streamable-http --port 8000
+uv run fastmcp run site_calc_investment.mcp.server:mcp --transport http --port 8000
 ```
 
 **Step 2 -- Expose to the internet (for local development):**
