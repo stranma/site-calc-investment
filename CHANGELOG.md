@@ -5,7 +5,7 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.6] - 2026-02-05
 
 ### Added
 - **`visualize_results` MCP tool**: New tool (#17) that generates an interactive HTML dashboard
