@@ -122,7 +122,11 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 
         // Device detail drill-down
         function updateDeviceCharts() {{
-            if (!drillDownData || !drillDownData.devices) return;
+            if (!drillDownData || !drillDownData.devices) {{
+                document.getElementById('chart-dispatch').innerHTML = '<div class="no-data">Device detail data not available (data omitted due to size limits or no devices present)</div>';
+                document.getElementById('chart-soc').innerHTML = '';
+                return;
+            }}
 
             var startHour = parseInt(document.getElementById('hour-start').value) || 0;
             var endHour = parseInt(document.getElementById('hour-end').value) || {default_window_end};

@@ -151,9 +151,17 @@ class DashboardData:
 
             if site_result.grid_flows:
                 if "import" in site_result.grid_flows:
-                    energy.grid_import = list(site_result.grid_flows["import"])
+                    site_import = list(site_result.grid_flows["import"])
+                    if energy.grid_import is None:
+                        energy.grid_import = site_import
+                    else:
+                        energy.grid_import = _sum_series(energy.grid_import, site_import)
                 if "export" in site_result.grid_flows:
-                    energy.grid_export = list(site_result.grid_flows["export"])
+                    site_export = list(site_result.grid_flows["export"])
+                    if energy.grid_export is None:
+                        energy.grid_export = site_export
+                    else:
+                        energy.grid_export = _sum_series(energy.grid_export, site_export)
 
         from site_calc_investment.visualization.aggregation import detect_aggregation_level
 
@@ -167,3 +175,14 @@ class DashboardData:
             aggregation_level=aggregation,
             has_investment_metrics=has_investment,
         )
+
+
+def _sum_series(a: List[float], b: List[float]) -> List[float]:
+    """Element-wise sum of two float lists, zero-padding the shorter one.
+
+    :param a: First series.
+    :param b: Second series.
+    :returns: Element-wise sum with length equal to the longer input.
+    """
+    max_len = max(len(a), len(b))
+    return [(a[i] if i < len(a) else 0.0) + (b[i] if i < len(b) else 0.0) for i in range(max_len)]

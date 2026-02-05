@@ -142,6 +142,14 @@ class TestBuildAnnualRevenueCostsChart:
         spec = build_annual_revenue_costs_chart(fd)
         assert spec is None
 
+    def test_returns_none_with_mismatched_lengths(self) -> None:
+        fd = FinancialData(
+            annual_revenue_by_year=[100000.0] * 5,
+            annual_costs_by_year=[30000.0] * 3,
+        )
+        spec = build_annual_revenue_costs_chart(fd)
+        assert spec is None
+
     def test_year_labels(self) -> None:
         fd = FinancialData(
             annual_revenue_by_year=[100000.0] * 3,
@@ -225,6 +233,14 @@ class TestBuildCumulativeCashFlowChart:
 
     def test_returns_none_without_data(self) -> None:
         fd = FinancialData()
+        spec = build_cumulative_cash_flow_chart(fd)
+        assert spec is None
+
+    def test_returns_none_with_mismatched_lengths(self) -> None:
+        fd = FinancialData(
+            annual_revenue_by_year=[100000.0] * 5,
+            annual_costs_by_year=[40000.0] * 3,
+        )
         spec = build_cumulative_cash_flow_chart(fd)
         assert spec is None
 

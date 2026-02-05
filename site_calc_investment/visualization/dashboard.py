@@ -6,6 +6,7 @@ with Plotly.js loaded via CDN.
 
 import json
 import os
+import re
 import webbrowser
 from datetime import datetime, timezone
 from html import escape
@@ -137,7 +138,7 @@ def _assemble_html(
     annual_json = _chart_to_json(annual_chart) if annual_chart else "null"
     cash_flow_json = _chart_to_json(cash_flow_chart) if cash_flow_chart else "null"
     energy_json = _chart_to_json(energy_chart)
-    drill_down_json = json.dumps(drill_down_data) if drill_down_data else "null"
+    drill_down_json = _safe_json_for_html(drill_down_data) if drill_down_data else "null"
 
     return DASHBOARD_TEMPLATE.format(
         job_id=escape(job_id),
@@ -190,7 +191,23 @@ def _build_energy_kpi_html(kpis: Dict[str, Any]) -> str:
 
 def _chart_to_json(spec: ChartSpec) -> str:
     """Convert a ChartSpec to JSON string for embedding."""
-    return json.dumps({"traces": spec.traces, "layout": spec.layout})
+    return _safe_json_for_html({"traces": spec.traces, "layout": spec.layout})
+
+
+def _safe_json_for_html(data: Any) -> str:
+    """Serialize data to JSON safe for embedding in HTML script tags.
+
+    Escapes characters that could break out of a ``<script>`` block.
+
+    :param data: Data to serialize.
+    :returns: JSON string safe for HTML embedding.
+    """
+    raw = json.dumps(data)
+    # Prevent </script> injection and HTML comment injection
+    raw = raw.replace("<", "\\u003c")
+    raw = raw.replace(">", "\\u003e")
+    raw = raw.replace("&", "\\u0026")
+    return raw
 
 
 def _get_output_path(job_id: str, output_dir: Optional[str] = None) -> Path:
@@ -209,8 +226,9 @@ def _get_output_path(job_id: str, output_dir: Optional[str] = None) -> Path:
         else:
             base_dir = Path.cwd() / "dashboards"
 
+    safe_job_id = re.sub(r"[^A-Za-z0-9_-]", "_", job_id).strip("_") or "unknown"
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"dashboard_{job_id}_{timestamp}.html"
+    filename = f"dashboard_{safe_job_id}_{timestamp}.html"
     return base_dir / filename
 
 

@@ -167,3 +167,30 @@ class TestOutputPath:
             os.environ.pop("INVESTMENT_DATA_DIR", None)
             path = _get_output_path("job123")
         assert "dashboards" in str(path)
+
+    def test_sanitizes_path_traversal_in_job_id(self) -> None:
+        path = _get_output_path("../../etc/passwd", output_dir="/tmp/test")
+        assert ".." not in path.name
+        # Path separators should be stripped
+        assert path.parent == Path("/tmp/test")
+
+    def test_sanitizes_special_chars_in_job_id(self) -> None:
+        path = _get_output_path("job<script>alert(1)</script>", output_dir="/tmp/test")
+        assert "<" not in path.name
+        assert ">" not in path.name
+
+
+class TestJsonSafety:
+    """Tests for JSON embedding safety."""
+
+    def test_script_tag_escaped_in_html(self, response_1year: InvestmentPlanningResponse, tmp_path: Path) -> None:
+        result = generate_dashboard("test_xss", response_1year, open_browser=False, output_dir=str(tmp_path))
+        html = Path(result["file_path"]).read_text(encoding="utf-8")
+        # The embedded JSON should not contain raw < or > that could break script tags
+        # Find a JSON block and verify it doesn't have raw angle brackets
+        marker = "var energyBalanceData = "
+        idx = html.index(marker)
+        start = idx + len(marker)
+        end = html.index(";", start)
+        json_str = html[start:end]
+        assert "</script>" not in json_str

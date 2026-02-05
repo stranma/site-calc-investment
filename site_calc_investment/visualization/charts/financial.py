@@ -72,6 +72,8 @@ def build_annual_revenue_costs_chart(financial: FinancialData) -> Optional[Chart
     """
     if not financial.annual_revenue_by_year or not financial.annual_costs_by_year:
         return None
+    if len(financial.annual_revenue_by_year) != len(financial.annual_costs_by_year):
+        return None
 
     num_years = len(financial.annual_revenue_by_year)
     year_labels = [f"Year {i + 1}" for i in range(num_years)]
@@ -114,6 +116,8 @@ def build_cumulative_cash_flow_chart(
     :returns: ChartSpec with a line trace, or None if annual data is not available.
     """
     if not financial.annual_revenue_by_year or not financial.annual_costs_by_year:
+        return None
+    if len(financial.annual_revenue_by_year) != len(financial.annual_costs_by_year):
         return None
 
     num_years = len(financial.annual_revenue_by_year)
@@ -201,9 +205,6 @@ def _format_currency(value: float) -> str:
     :param value: Value in EUR.
     :returns: Formatted string like "EUR 850,000" or "EUR -23,162".
     """
-    if abs(value) >= 1_000_000:
+    if abs(value) >= 1000:
         return f"EUR {value:,.0f}"
-    elif abs(value) >= 1000:
-        return f"EUR {value:,.0f}"
-    else:
-        return f"EUR {value:,.2f}"
+    return f"EUR {value:,.2f}"
