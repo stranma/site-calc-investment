@@ -3,7 +3,7 @@
 **Package:** `site-calc-investment[mcp]`
 **Server name:** `site-calc-investment`
 **Protocol:** MCP (Model Context Protocol) via FastMCP
-**Tools:** 15
+**Tools:** 18
 
 ---
 
@@ -31,7 +31,7 @@ The MCP server runs **locally** on the user's machine. It has full filesystem ac
 
 | Feature | Value |
 |---------|-------|
-| Tools | 15 |
+| Tools | 18 |
 | Device types | 10 |
 | Max horizon | 100,000 intervals (~11 years) |
 | Resolution | 1-hour |
@@ -159,9 +159,13 @@ Set the optimization time horizon.
 |-----------|------|----------|---------|-------------|
 | `scenario_id` | string | Yes | | Target scenario |
 | `start_year` | int | Yes | | Start year (e.g., 2025) |
-| `years` | int | No | 1 | Number of years |
+| `years` | int | No | 1 | Number of years (ignored when `intervals` is set) |
+| `intervals` | int | No | None | Exact interval count (1-100,000). Overrides `years * 8760`. |
 
 One year = 8,760 intervals. Maximum ~11 years (100,000 intervals).
+
+Use `intervals` when working with partial-year data (e.g., a CSV file with 864 rows).
+When `intervals` is provided, the `years` parameter is ignored for interval calculation.
 
 **Returns:** Confirmation string with interval count.
 
@@ -335,6 +339,42 @@ Path resolution:
 
 ---
 
+#### `fetch_url`
+
+Download a file from a URL and save it locally.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `url` | string | Yes | | URL to download (http or https) |
+| `file_path` | string | No | from URL | Local filename. Relative paths resolve against `INVESTMENT_DATA_DIR`. |
+| `overwrite` | bool | No | false | Allow overwriting existing files |
+
+Downloads the file to `INVESTMENT_DATA_DIR` (or cwd). For CSV files, returns metadata
+(row count, column names, numeric columns) so you can use the data immediately.
+
+**Returns:**
+```json
+{
+  "file_path": "C:\\Users\\Admin\\data\\2026.csv",
+  "url": "https://example.com/data/2026.csv",
+  "rows": 864,
+  "columns": ["date", "hour", "price_eur_mwh", "volume_mwh"],
+  "columns_count": 4,
+  "numeric_columns": ["hour", "price_eur_mwh", "volume_mwh"],
+  "message": "Downloaded https://example.com/data/2026.csv to C:\\...\\2026.csv (864 rows, 4 columns)"
+}
+```
+
+**Typical workflow with web data:**
+```
+1. LLM calls fetch_url(url="https://example.com/prices.csv")
+   -> returns {file_path, rows: 864, columns: [...], ...}
+2. LLM calls set_timespan(scenario_id=sid, start_year=2026, intervals=864)
+3. LLM calls add_device(properties={"price": {"file": "<file_path>", "column": "price_eur_mwh"}, ...})
+```
+
+---
+
 ### 3.4 Helper Tools
 
 #### `get_device_schema`
@@ -370,31 +410,31 @@ Use `get_device_schema(device_type)` for full property documentation.
 
 ## 5. End-to-End Example
 
-A typical session for battery arbitrage analysis:
+A typical session for battery arbitrage analysis with web data:
 
 ```
-User: "Evaluate a 10 MWh battery with 2025 German electricity prices"
+User: "Evaluate a 20 MWh battery using Czech market prices from
+       https://algoenergy.cz/data/hourly/2026.csv"
 
 LLM actions:
-1. Generate 8760 hourly prices for 2025
-2. save_data_file(file_path="de_prices_2025.csv",
-     columns={"hour": [0..8759], "price_eur_mwh": [32.1, 28.5, ...]})
-3. create_scenario(name="10 MWh Battery - DE 2025")
-4. set_timespan(scenario_id=sid, start_year=2025)
-5. add_device(scenario_id=sid, device_type="battery", name="BESS",
-     properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.90})
-6. add_device(scenario_id=sid, device_type="electricity_import", name="GridBuy",
-     properties={"price": {"file": ".../de_prices_2025.csv", "column": "price_eur_mwh"},
-                 "max_import": 5.0})
-7. add_device(scenario_id=sid, device_type="electricity_export", name="GridSell",
-     properties={"price": {"file": ".../de_prices_2025.csv", "column": "price_eur_mwh"},
-                 "max_export": 5.0})
-8. set_investment_params(scenario_id=sid, discount_rate=0.05,
+1. fetch_url(url="https://algoenergy.cz/data/hourly/2026.csv")
+   -> {file_path: ".../2026.csv", rows: 864, columns: ["date", "price_eur_mwh", ...]}
+2. create_scenario(name="20 MWh Battery - CZ 2026")
+3. set_timespan(scenario_id=sid, start_year=2026, intervals=864)
+4. add_device(scenario_id=sid, device_type="battery", name="BESS",
+     properties={"capacity": 20.0, "max_power": 10.0, "efficiency": 0.90})
+5. add_device(scenario_id=sid, device_type="electricity_import", name="GridBuy",
+     properties={"price": {"file": ".../2026.csv", "column": "price_eur_mwh"},
+                 "max_import": 10.0})
+6. add_device(scenario_id=sid, device_type="electricity_export", name="GridSell",
+     properties={"price": {"file": ".../2026.csv", "column": "price_eur_mwh"},
+                 "max_export": 10.0})
+7. set_investment_params(scenario_id=sid, discount_rate=0.05,
      device_capital_costs={"BESS": 500000})
-9. review_scenario(scenario_id=sid)
-10. submit_scenario(scenario_id=sid)
-11. get_job_status(job_id=jid)  -- poll until complete
-12. get_job_result(job_id=jid, detail_level="summary")
+8. review_scenario(scenario_id=sid)
+9. submit_scenario(scenario_id=sid)
+10. get_job_status(job_id=jid)  -- poll until complete
+11. get_job_result(job_id=jid, detail_level="summary")
 ```
 
 LLM then presents the results: profit, NPV, IRR, payback period.
@@ -428,6 +468,8 @@ cd client-investment && uv run pytest tests/ -v
 
 Test coverage includes:
 - 11 tests for `save_csv` data layer
+- 2 tests for `_get_csv_metadata` helper
+- 7 tests for `fetch_url_to_file` (mocked httpx)
 - 2 tests for `save_data_file` tool integration
 - 7 MCP protocol integration tests (via FastMCP Client)
-- 77+ tests for scenario assembly and job management tools
+- 85+ tests for scenario assembly and job management tools

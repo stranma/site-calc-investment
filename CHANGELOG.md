@@ -5,6 +5,22 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-02-05
+
+### Added
+- **`fetch_url` MCP tool**: New tool (#18) that downloads a URL (e.g., CSV price data
+  from the web), saves it locally, and returns CSV metadata (row count, column names,
+  numeric columns). Enables workflows where the LLM fetches market data directly
+  instead of requiring manual file preparation or inline array generation.
+- **`intervals` parameter on `set_timespan`**: Optional parameter (1-100,000) that
+  overrides `years * 8760` calculation. Allows using partial-year data (e.g., a CSV
+  with 864 rows for ~36 days of hourly data).
+
+### Changed
+- MCP tool count: 17 -> 18
+
+---
+
 ## [1.2.6] - 2026-02-05
 
 ### Added
