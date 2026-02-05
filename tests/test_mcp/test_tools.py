@@ -555,6 +555,16 @@ class TestVisualizeResults:
         content = html_path.read_text(encoding="utf-8")
         assert "plotly" in content.lower()
 
+    def test_raises_on_non_completed_job(self) -> None:
+        from site_calc_investment.exceptions import SiteCalcError
+
+        mock_client = MagicMock()
+        mock_client.get_job_result.side_effect = SiteCalcError("Job not completed")
+        mcp_server._client = mock_client
+
+        with pytest.raises(SiteCalcError, match="not completed"):
+            mcp_server.visualize_results(job_id="pending_job_123", open_browser=False)
+
 
 class TestGetVersion:
     """Tests for get_version tool."""
