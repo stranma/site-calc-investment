@@ -122,9 +122,7 @@ class TestHtmlContent:
 class TestBrowserOpening:
     """Tests for browser opening behavior."""
 
-    def test_open_browser_false_does_not_call(
-        self, response_1year: InvestmentPlanningResponse, tmp_path: Path
-    ) -> None:
+    def test_open_browser_false_does_not_call(self, response_1year: InvestmentPlanningResponse, tmp_path: Path) -> None:
         with patch("site_calc_investment.visualization.dashboard.webbrowser") as mock_wb:
             generate_dashboard("test_job", response_1year, open_browser=False, output_dir=str(tmp_path))
             mock_wb.open.assert_not_called()

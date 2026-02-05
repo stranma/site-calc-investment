@@ -99,9 +99,7 @@ class TestCategorizeDeviceFlows:
         assert "CHP1 (gas)" in con_labels
 
     def test_pv_as_generation(self) -> None:
-        devices = [
-            DeviceFlowData(name="PV1", flows={"electricity": [0.8] * 4})
-        ]
+        devices = [DeviceFlowData(name="PV1", flows={"electricity": [0.8] * 4})]
         result = categorize_device_flows(devices)
         gen_labels = [label for label, _ in result["generation"]]
         assert "PV1 (electricity)" in gen_labels

@@ -173,9 +173,9 @@ def _build_kpi_cards_html(cards: List[Dict[str, Any]]) -> str:
 def _build_energy_kpi_html(kpis: Dict[str, Any]) -> str:
     """Build energy KPI cards HTML."""
     items = [
-        ("Total Generation", f'{kpis["total_generation_mwh"]:,.0f} MWh'),
-        ("Total Consumption", f'{kpis["total_consumption_mwh"]:,.0f} MWh'),
-        ("Net Grid Position", f'{kpis["net_grid_position_mwh"]:,.0f} MWh'),
+        ("Total Generation", f"{kpis['total_generation_mwh']:,.0f} MWh"),
+        ("Total Consumption", f"{kpis['total_consumption_mwh']:,.0f} MWh"),
+        ("Net Grid Position", f"{kpis['net_grid_position_mwh']:,.0f} MWh"),
     ]
     parts: List[str] = []
     for label, value in items:

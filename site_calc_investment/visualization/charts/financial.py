@@ -22,36 +22,44 @@ def build_kpi_cards(financial: FinancialData) -> List[Dict[str, Any]]:
     cards: List[Dict[str, Any]] = []
 
     if financial.npv is not None:
-        cards.append({
-            "label": "Net Present Value",
-            "value": financial.npv,
-            "formatted_value": _format_currency(financial.npv),
-            "unit": "EUR",
-        })
+        cards.append(
+            {
+                "label": "Net Present Value",
+                "value": financial.npv,
+                "formatted_value": _format_currency(financial.npv),
+                "unit": "EUR",
+            }
+        )
 
     if financial.irr is not None:
-        cards.append({
-            "label": "Internal Rate of Return",
-            "value": financial.irr,
-            "formatted_value": f"{financial.irr * 100:.1f}%",
-            "unit": "%",
-        })
+        cards.append(
+            {
+                "label": "Internal Rate of Return",
+                "value": financial.irr,
+                "formatted_value": f"{financial.irr * 100:.1f}%",
+                "unit": "%",
+            }
+        )
 
     if financial.payback_period_years is not None:
-        cards.append({
-            "label": "Payback Period",
-            "value": financial.payback_period_years,
-            "formatted_value": f"{financial.payback_period_years:.1f} years",
-            "unit": "years",
-        })
+        cards.append(
+            {
+                "label": "Payback Period",
+                "value": financial.payback_period_years,
+                "formatted_value": f"{financial.payback_period_years:.1f} years",
+                "unit": "years",
+            }
+        )
 
     if financial.expected_profit is not None:
-        cards.append({
-            "label": "Total Profit",
-            "value": financial.expected_profit,
-            "formatted_value": _format_currency(financial.expected_profit),
-            "unit": "EUR",
-        })
+        cards.append(
+            {
+                "label": "Total Profit",
+                "value": financial.expected_profit,
+                "formatted_value": _format_currency(financial.expected_profit),
+                "unit": "EUR",
+            }
+        )
 
     return cards
 
@@ -151,30 +159,34 @@ def build_cumulative_cash_flow_chart(
     if financial.payback_period_years is not None:
         payback_year = financial.payback_period_years
         # Add a vertical line annotation at payback point
-        layout["annotations"].append({
-            "x": payback_year,
-            "y": 0,
-            "xref": "x",
-            "yref": "y",
-            "text": f"Payback: {payback_year:.1f}y",
-            "showarrow": True,
-            "arrowhead": 2,
-            "ax": 0,
-            "ay": -40,
-            "font": {"color": "#e67e22", "size": 12},
-        })
+        layout["annotations"].append(
+            {
+                "x": payback_year,
+                "y": 0,
+                "xref": "x",
+                "yref": "y",
+                "text": f"Payback: {payback_year:.1f}y",
+                "showarrow": True,
+                "arrowhead": 2,
+                "ax": 0,
+                "ay": -40,
+                "font": {"color": "#e67e22", "size": 12},
+            }
+        )
 
         # Add vertical line shape
-        layout["shapes"] = [{
-            "type": "line",
-            "x0": payback_year,
-            "x1": payback_year,
-            "y0": 0,
-            "y1": 1,
-            "xref": "x",
-            "yref": "paper",
-            "line": {"color": "#e67e22", "dash": "dot", "width": 2},
-        }]
+        layout["shapes"] = [
+            {
+                "type": "line",
+                "x0": payback_year,
+                "x1": payback_year,
+                "y0": 0,
+                "y1": 1,
+                "xref": "x",
+                "yref": "paper",
+                "line": {"color": "#e67e22", "dash": "dot", "width": 2},
+            }
+        ]
 
     return ChartSpec(
         traces=[cash_flow_trace, zero_line_trace],

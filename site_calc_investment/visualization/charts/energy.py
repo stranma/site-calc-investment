@@ -143,13 +143,15 @@ def build_energy_balance_chart(
     for i, (label, values) in enumerate(categorized["generation"]):
         agg_labels, agg_values = _aggregate_values(values, aggregation_level, start_year)
         color = gen_colors[i % len(gen_colors)]
-        traces.append({
-            "x": agg_labels,
-            "y": agg_values,
-            "type": "bar",
-            "name": label,
-            "marker": {"color": color},
-        })
+        traces.append(
+            {
+                "x": agg_labels,
+                "y": agg_values,
+                "type": "bar",
+                "name": label,
+                "marker": {"color": color},
+            }
+        )
 
     # Consumption traces (negative bars for visual clarity)
     con_colors = ["#e74c3c", "#c0392b", "#e67e22", "#d35400", "#f39c12"]
@@ -157,13 +159,15 @@ def build_energy_balance_chart(
         agg_labels, agg_values = _aggregate_values(values, aggregation_level, start_year)
         neg_values = [-v for v in agg_values]
         color = con_colors[i % len(con_colors)]
-        traces.append({
-            "x": agg_labels,
-            "y": neg_values,
-            "type": "bar",
-            "name": label,
-            "marker": {"color": color},
-        })
+        traces.append(
+            {
+                "x": agg_labels,
+                "y": neg_values,
+                "type": "bar",
+                "name": label,
+                "marker": {"color": color},
+            }
+        )
 
     layout: Dict[str, Any] = {
         "title": {"text": "Energy Balance"},

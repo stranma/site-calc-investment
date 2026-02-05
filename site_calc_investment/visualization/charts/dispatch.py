@@ -45,8 +45,16 @@ def build_dispatch_chart(
 
     traces: List[Dict[str, Any]] = []
     colors = [
-        "#3498db", "#e74c3c", "#2ecc71", "#9b59b6", "#f39c12",
-        "#1abc9c", "#e67e22", "#34495e", "#16a085", "#c0392b",
+        "#3498db",
+        "#e74c3c",
+        "#2ecc71",
+        "#9b59b6",
+        "#f39c12",
+        "#1abc9c",
+        "#e67e22",
+        "#34495e",
+        "#16a085",
+        "#c0392b",
     ]
     color_idx = 0
 
@@ -55,14 +63,16 @@ def build_dispatch_chart(
     for device in devices:
         for material, values in device.flows.items():
             window_values = values[window_start:window_end]
-            traces.append({
-                "x": hours,
-                "y": window_values,
-                "type": "scatter",
-                "mode": "lines",
-                "name": f"{device.name} ({material})",
-                "line": {"color": colors[color_idx % len(colors)], "width": 1.5},
-            })
+            traces.append(
+                {
+                    "x": hours,
+                    "y": window_values,
+                    "type": "scatter",
+                    "mode": "lines",
+                    "name": f"{device.name} ({material})",
+                    "line": {"color": colors[color_idx % len(colors)], "width": 1.5},
+                }
+            )
             color_idx += 1
 
     layout: Dict[str, Any] = {
@@ -107,14 +117,16 @@ def build_soc_chart(
         if device.soc is None:
             continue
         soc_pct = [v * 100.0 for v in device.soc[window_start:window_end]]
-        traces.append({
-            "x": hours,
-            "y": soc_pct,
-            "type": "scatter",
-            "mode": "lines",
-            "name": f"{device.name} SOC",
-            "line": {"color": colors[i % len(colors)], "width": 2},
-        })
+        traces.append(
+            {
+                "x": hours,
+                "y": soc_pct,
+                "type": "scatter",
+                "mode": "lines",
+                "name": f"{device.name} SOC",
+                "line": {"color": colors[i % len(colors)], "width": 2},
+            }
+        )
 
     layout: Dict[str, Any] = {
         "title": {"text": f"State of Charge (Hours {window_start}-{window_end})"},

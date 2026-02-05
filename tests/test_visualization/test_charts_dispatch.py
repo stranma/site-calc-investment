@@ -138,8 +138,7 @@ class TestShouldEmbedHourlyData:
         # Use multiple devices with long arrays
         large_values = [1.23456789] * 500_000
         devices = [
-            DeviceFlowData(name=f"Dev{i}", flows={"electricity": large_values, "heat": large_values})
-            for i in range(10)
+            DeviceFlowData(name=f"Dev{i}", flows={"electricity": large_values, "heat": large_values}) for i in range(10)
         ]
         assert should_embed_hourly_data(devices) is False
 
