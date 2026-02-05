@@ -3,7 +3,9 @@
 import csv
 import json
 import os
+import posixpath
 from typing import Any, Optional, Union
+from urllib.parse import urlparse
 
 
 def resolve_price_or_profile(
@@ -239,3 +241,145 @@ def save_csv(
             writer.writerow([columns[name][i] for name in col_names])
 
     return resolved
+
+
+def _get_csv_metadata(file_path: str) -> dict[str, Any]:
+    """Extract metadata from a CSV file (rows, columns, numeric columns).
+
+    :param file_path: Absolute path to the CSV file.
+    :returns: Dict with rows, columns, columns_count, numeric_columns.
+    """
+    with open(file_path, encoding="utf-8", newline="") as f:
+        sample = f.read(8192)
+        f.seek(0)
+
+        try:
+            dialect = csv.Sniffer().sniff(sample)
+        except csv.Error:
+            dialect = csv.excel  # type: ignore[assignment]
+
+        has_header = csv.Sniffer().has_header(sample)
+        f.seek(0)
+
+        reader = csv.reader(f, dialect)
+
+        if has_header:
+            headers = [h.strip() for h in next(reader)]
+        else:
+            first_row = next(reader)
+            headers = [f"col_{i}" for i in range(len(first_row))]
+            f.seek(0)
+            reader = csv.reader(f, dialect)
+
+        row_count = 0
+        numeric_cols: set[int] = set(range(len(headers)))
+        rows_to_sample = 10
+        for row in reader:
+            if not row or all(cell.strip() == "" for cell in row):
+                continue
+            row_count += 1
+            if row_count <= rows_to_sample:
+                for i in list(numeric_cols):
+                    if i < len(row):
+                        try:
+                            float(row[i])
+                        except ValueError:
+                            numeric_cols.discard(i)
+            if row_count == rows_to_sample:
+                row_count += sum(1 for _ in reader)
+                break
+
+    numeric_column_names = [headers[i] for i in sorted(numeric_cols) if i < len(headers)]
+
+    return {
+        "rows": row_count,
+        "columns": headers,
+        "columns_count": len(headers),
+        "numeric_columns": numeric_column_names,
+    }
+
+
+def fetch_url_to_file(
+    url: str,
+    data_dir: Optional[str] = None,
+    file_path: Optional[str] = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Download a URL and save it to the local filesystem.
+
+    :param url: URL to download.
+    :param data_dir: Base directory for relative paths (or None for cwd).
+    :param file_path: Filename or path. If None, derived from the URL.
+    :param overwrite: Allow overwriting an existing file (default: False).
+    :returns: Dict with file_path, url, rows, columns, columns_count, numeric_columns, message.
+    :raises ValueError: If the URL is invalid or empty.
+    :raises FileExistsError: If file exists and overwrite is False.
+    :raises RuntimeError: If the download fails.
+    """
+    import httpx
+
+    if not url or not url.strip():
+        raise ValueError("URL must not be empty.")
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"URL must use http or https scheme, got '{parsed.scheme}'.")
+
+    if file_path is None:
+        url_filename = posixpath.basename(parsed.path)
+        if not url_filename or "." not in url_filename:
+            url_filename = "downloaded_data.csv"
+        file_path = url_filename
+
+    resolved = _resolve_download_path(file_path, data_dir)
+
+    if not overwrite and os.path.exists(resolved):
+        raise FileExistsError(f"File already exists: {resolved}. Set overwrite=True to replace it.")
+
+    parent = os.path.dirname(resolved)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    try:
+        with httpx.stream("GET", url, follow_redirects=True, timeout=30.0) as response:
+            response.raise_for_status()
+            with open(resolved, "wb") as f:
+                for chunk in response.iter_bytes(chunk_size=8192):
+                    f.write(chunk)
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(f"HTTP error {e.response.status_code} downloading {url}") from e
+    except httpx.RequestError as e:
+        raise RuntimeError(f"Failed to download {url}: {e}") from e
+
+    result: dict[str, Any] = {
+        "file_path": resolved,
+        "url": url,
+    }
+
+    ext = os.path.splitext(resolved)[1].lower()
+    if ext in (".csv", ".tsv", ".txt"):
+        try:
+            metadata = _get_csv_metadata(resolved)
+            result.update(metadata)
+        except Exception as e:
+            result["metadata_error"] = f"Could not extract CSV metadata: {e}"
+
+    result["message"] = f"Downloaded {url} to {resolved}"
+    if "rows" in result:
+        result["message"] += f" ({result['rows']} rows, {result['columns_count']} columns)"
+
+    return result
+
+
+def _resolve_download_path(file_path: str, data_dir: Optional[str] = None) -> str:
+    """Resolve a file path for downloads, allowing any extension.
+
+    :param file_path: Filename or path (relative or absolute).
+    :param data_dir: Base directory for relative paths (or None for cwd).
+    :returns: Absolute path string.
+    """
+    if os.path.isabs(file_path):
+        return file_path
+
+    base = data_dir if data_dir else os.getcwd()
+    return os.path.abspath(os.path.join(base, file_path))

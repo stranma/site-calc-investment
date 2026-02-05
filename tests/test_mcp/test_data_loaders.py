@@ -2,10 +2,16 @@
 
 import json
 import os
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from site_calc_investment.mcp.data_loaders import resolve_price_or_profile, save_csv
+from site_calc_investment.mcp.data_loaders import (
+    _get_csv_metadata,
+    fetch_url_to_file,
+    resolve_price_or_profile,
+    save_csv,
+)
 
 
 class TestScalarExpansion:
@@ -222,3 +228,158 @@ class TestSaveCsv:
         assert len(result) == 8760
         assert result[0] == 0.0
         assert result[99] == 99.0
+
+
+class TestGetCsvMetadata:
+    """Tests for _get_csv_metadata helper."""
+
+    def test_metadata_with_header(self, tmp_csv: str) -> None:
+        metadata = _get_csv_metadata(tmp_csv)
+        assert metadata["rows"] == 8760
+        assert "hour" in metadata["columns"]
+        assert "price_eur" in metadata["columns"]
+        assert metadata["columns_count"] == 2
+        assert len(metadata["numeric_columns"]) > 0
+
+    def test_metadata_small_csv(self, tmp_path: object) -> None:
+        import pathlib
+
+        path = pathlib.Path(str(tmp_path)) / "small.csv"
+        with open(path, "w", newline="") as f:
+            f.write("date,price_eur_mwh,volume\n")
+            for i in range(5):
+                f.write(f"2026-01-{i + 1},{30.0 + i},{100 + i}\n")
+        metadata = _get_csv_metadata(str(path))
+        assert metadata["rows"] == 5
+        assert metadata["columns"] == ["date", "price_eur_mwh", "volume"]
+        assert metadata["columns_count"] == 3
+        assert "price_eur_mwh" in metadata["numeric_columns"]
+        assert "volume" in metadata["numeric_columns"]
+        assert "date" not in metadata["numeric_columns"]
+
+
+def _make_mock_response(content: bytes, status_code: int = 200) -> MagicMock:
+    """Create a mock httpx streaming response."""
+    mock_response = MagicMock()
+    mock_response.status_code = status_code
+    mock_response.raise_for_status = MagicMock()
+    mock_response.iter_bytes = MagicMock(return_value=iter([content]))
+    mock_response.__enter__ = MagicMock(return_value=mock_response)
+    mock_response.__exit__ = MagicMock(return_value=False)
+    return mock_response
+
+
+class TestFetchUrl:
+    """Tests for fetch_url_to_file -- downloading URLs to local files."""
+
+    def test_fetch_csv_returns_metadata(self, tmp_path: object) -> None:
+        """Successful CSV download returns file_path and metadata."""
+        import pathlib
+
+        data_dir = pathlib.Path(str(tmp_path)) / "data"
+        data_dir.mkdir()
+        csv_content = b"date,price_eur_mwh\n2026-01-01,30.5\n2026-01-02,42.1\n2026-01-03,28.0\n"
+        mock_resp = _make_mock_response(csv_content)
+
+        with patch("httpx.stream", return_value=mock_resp):
+            result = fetch_url_to_file(
+                url="https://example.com/data/2026.csv",
+                data_dir=str(data_dir),
+            )
+        assert os.path.isfile(result["file_path"])
+        assert result["url"] == "https://example.com/data/2026.csv"
+        assert result["rows"] == 3
+        assert "price_eur_mwh" in result["columns"]
+        assert result["columns_count"] == 2
+
+    def test_fetch_derives_filename_from_url(self, tmp_path: object) -> None:
+        """Filename is derived from URL path when file_path is not provided."""
+        import pathlib
+
+        data_dir = pathlib.Path(str(tmp_path)) / "data"
+        data_dir.mkdir()
+        csv_content = b"col1\n1.0\n"
+        mock_resp = _make_mock_response(csv_content)
+
+        with patch("httpx.stream", return_value=mock_resp):
+            result = fetch_url_to_file(
+                url="https://example.com/hourly/prices_2026.csv",
+                data_dir=str(data_dir),
+            )
+        assert result["file_path"].endswith("prices_2026.csv")
+
+    def test_fetch_custom_filename(self, tmp_path: object) -> None:
+        """Custom file_path overrides URL-derived filename."""
+        import pathlib
+
+        data_dir = pathlib.Path(str(tmp_path)) / "data"
+        data_dir.mkdir()
+        csv_content = b"col1\n1.0\n"
+        mock_resp = _make_mock_response(csv_content)
+
+        with patch("httpx.stream", return_value=mock_resp):
+            result = fetch_url_to_file(
+                url="https://example.com/data.csv",
+                data_dir=str(data_dir),
+                file_path="my_custom_name.csv",
+            )
+        assert result["file_path"].endswith("my_custom_name.csv")
+
+    def test_fetch_no_overwrite_raises(self, tmp_path: object) -> None:
+        """FileExistsError when file exists and overwrite=False."""
+        import pathlib
+
+        data_dir = pathlib.Path(str(tmp_path)) / "data"
+        data_dir.mkdir()
+        existing = data_dir / "existing.csv"
+        existing.write_text("old data")
+
+        with pytest.raises(FileExistsError, match="already exists"):
+            fetch_url_to_file(
+                url="https://example.com/existing.csv",
+                data_dir=str(data_dir),
+                file_path="existing.csv",
+                overwrite=False,
+            )
+
+    def test_fetch_overwrite_replaces(self, tmp_path: object) -> None:
+        """overwrite=True replaces existing file."""
+        import pathlib
+
+        data_dir = pathlib.Path(str(tmp_path)) / "data"
+        data_dir.mkdir()
+        existing = data_dir / "replace.csv"
+        existing.write_text("old data")
+        csv_content = b"date,price\n2026-01-01,30.5\n2026-01-02,42.1\n"
+        mock_resp = _make_mock_response(csv_content)
+
+        with patch("httpx.stream", return_value=mock_resp):
+            result = fetch_url_to_file(
+                url="https://example.com/replace.csv",
+                data_dir=str(data_dir),
+                file_path="replace.csv",
+                overwrite=True,
+            )
+        assert result["rows"] == 2
+        with open(result["file_path"]) as f:
+            assert "42.1" in f.read()
+
+    def test_fetch_invalid_url_raises(self, tmp_path: object) -> None:
+        """Invalid URL scheme raises ValueError."""
+        import pathlib
+
+        data_dir = pathlib.Path(str(tmp_path)) / "data"
+        data_dir.mkdir()
+
+        with pytest.raises(ValueError, match="http or https"):
+            fetch_url_to_file(url="ftp://example.com/data.csv", data_dir=str(data_dir))
+
+    def test_fetch_empty_url_raises(self, tmp_path: object) -> None:
+        """Empty URL raises ValueError."""
+        import pathlib
+
+        data_dir = pathlib.Path(str(tmp_path)) / "data"
+        data_dir.mkdir()
+
+        with pytest.raises(ValueError, match="must not be empty"):
+            fetch_url_to_file(url="", data_dir=str(data_dir))

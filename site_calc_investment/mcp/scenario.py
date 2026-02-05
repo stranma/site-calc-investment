@@ -40,6 +40,7 @@ class TimespanConfig:
 
     start_year: int
     years: int = 1
+    intervals: Optional[int] = None
 
 
 @dataclass
@@ -255,23 +256,28 @@ class ScenarioStore:
             f"Devices: {', '.join(d.name for d in scenario.devices) or '(none)'}"
         )
 
-    def set_timespan(self, scenario_id: str, start_year: int, years: int = 1) -> str:
+    def set_timespan(self, scenario_id: str, start_year: int, years: int = 1, intervals: Optional[int] = None) -> str:
         """Set the optimization time horizon.
 
+        :param intervals: Explicit interval count (1-100,000). Overrides years * 8760 when provided.
         :returns: Summary string with interval count.
         """
-        if years < 1:
-            raise ValueError("Timespan must be at least 1 year.")
-        if years * 8760 > 100_000:
-            raise ValueError(
-                f"Timespan of {years} years ({years * 8760} intervals) exceeds the 100,000 interval limit."
-            )
+        if intervals is not None:
+            if intervals < 1 or intervals > 100_000:
+                raise ValueError(f"intervals must be between 1 and 100,000, got {intervals}.")
+            effective_intervals = intervals
+        else:
+            if years < 1:
+                raise ValueError("Timespan must be at least 1 year.")
+            effective_intervals = years * 8760
+            if effective_intervals > 100_000:
+                raise ValueError(
+                    f"Timespan of {years} years ({effective_intervals} intervals) exceeds the 100,000 interval limit."
+                )
+
         scenario = self.get(scenario_id)
-        scenario.timespan = TimespanConfig(start_year=start_year, years=years)
-        intervals = years * 8760
-        return (
-            f"Timespan set: {start_year}-01-01 to {start_year + years - 1}-12-31 ({intervals} intervals, 1h resolution)"
-        )
+        scenario.timespan = TimespanConfig(start_year=start_year, years=years, intervals=intervals)
+        return f"Timespan set: {start_year}, {effective_intervals} intervals (1h resolution)"
 
     def set_investment_params(
         self,
@@ -322,8 +328,12 @@ class ScenarioStore:
 
         timespan_str = "not set"
         if scenario.timespan:
-            intervals = scenario.timespan.years * 8760
-            timespan_str = f"{scenario.timespan.start_year}, {scenario.timespan.years} year(s), {intervals} intervals"
+            ts = scenario.timespan
+            effective_intervals = ts.intervals if ts.intervals is not None else ts.years * 8760
+            if ts.intervals is not None:
+                timespan_str = f"{ts.start_year}, {effective_intervals} intervals (custom)"
+            else:
+                timespan_str = f"{ts.start_year}, {ts.years} year(s), {effective_intervals} intervals"
 
         investment_str = "not set (no CAPEX/OPEX analysis)"
         if scenario.investment_params:
@@ -371,15 +381,27 @@ class ScenarioStore:
             raise ValueError("Cannot submit: no timespan set. Use set_timespan first.")
 
         ts_config = scenario.timespan
-        timespan = cast(
-            TimeSpanInvestment,
-            TimeSpanInvestment.for_years(
-                start_year=ts_config.start_year,
-                years=ts_config.years,
+        if ts_config.intervals is not None:
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+
+            start = datetime(ts_config.start_year, 1, 1, tzinfo=ZoneInfo("Europe/Prague"))
+            timespan = TimeSpanInvestment(
+                start=start,
+                intervals=ts_config.intervals,
                 resolution=Resolution.HOUR_1,
-            ),
-        )
-        expected_length = ts_config.years * 8760
+            )
+            expected_length = ts_config.intervals
+        else:
+            timespan = cast(
+                TimeSpanInvestment,
+                TimeSpanInvestment.for_years(
+                    start_year=ts_config.start_year,
+                    years=ts_config.years,
+                    resolution=Resolution.HOUR_1,
+                ),
+            )
+            expected_length = ts_config.years * 8760
 
         devices = []
         for dc in scenario.devices:
@@ -401,7 +423,14 @@ class ScenarioStore:
         inv_params = None
         if scenario.investment_params:
             ip = scenario.investment_params
-            lifetime = ip.project_lifetime_years or ts_config.years
+            if ip.project_lifetime_years:
+                lifetime = ip.project_lifetime_years
+            elif ts_config.intervals is not None:
+                import math
+
+                lifetime = max(1, math.ceil(ts_config.intervals / 8760))
+            else:
+                lifetime = ts_config.years
             inv_params = InvestmentParameters(
                 discount_rate=ip.discount_rate,
                 project_lifetime_years=lifetime,
