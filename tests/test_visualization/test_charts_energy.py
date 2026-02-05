@@ -45,7 +45,7 @@ class TestCategorizeDeviceFlows:
             )
         ]
         result = categorize_device_flows(devices)
-        discharge = next(v for l, v in result["generation"] if "discharge" in l)
+        discharge = next(v for label, v in result["generation"] if "discharge" in label)
         assert discharge == [2.0, 0.0, 3.0, 0.0]
 
     def test_battery_charge_values_correct(self) -> None:
@@ -56,7 +56,7 @@ class TestCategorizeDeviceFlows:
             )
         ]
         result = categorize_device_flows(devices)
-        charge = next(v for l, v in result["consumption"] if "charge" in l)
+        charge = next(v for label, v in result["consumption"] if "charge" in label)
         assert charge == [0.0, 1.0, 0.0, 2.0]
 
     def test_grid_import_as_consumption(self) -> None:

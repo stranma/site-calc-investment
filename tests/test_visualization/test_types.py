@@ -6,7 +6,6 @@ from site_calc_investment.visualization.types import (
     ChartSpec,
     DashboardData,
     DeviceFlowData,
-    EnergyData,
     FinancialData,
     TimespanInfo,
 )

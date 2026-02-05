@@ -5,8 +5,6 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from site_calc_investment.models.responses import InvestmentPlanningResponse
 from site_calc_investment.visualization._template import PLOTLY_CDN_URL
 from site_calc_investment.visualization.dashboard import (

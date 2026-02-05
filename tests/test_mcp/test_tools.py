@@ -489,6 +489,73 @@ class TestSaveDataFile:
         assert len(review["devices"]) == 1
 
 
+class TestVisualizeResults:
+    """Tests for visualize_results tool."""
+
+    def test_returns_dashboard_dict(self, mock_result_response: dict, tmp_path: object) -> None:
+        import pathlib
+
+        mock_client = MagicMock()
+        from site_calc_investment.models.responses import InvestmentPlanningResponse
+
+        result_data = {
+            "job_id": str(mock_result_response["job_id"]),
+            "status": mock_result_response["status"],
+            **mock_result_response["result"],
+        }
+        mock_client.get_job_result.return_value = InvestmentPlanningResponse(**result_data)
+        mcp_server._client = mock_client
+
+        with patch("site_calc_investment.mcp.server.get_data_dir", return_value=str(tmp_path)):
+            result = mcp_server.visualize_results(job_id="test_job_mcp_123", open_browser=False)
+
+        assert "file_path" in result
+        assert "charts_generated" in result
+        assert "message" in result
+        assert pathlib.Path(result["file_path"]).exists()
+
+    def test_returns_summary_with_investment_metrics(self, mock_result_response: dict, tmp_path: object) -> None:
+        mock_client = MagicMock()
+        from site_calc_investment.models.responses import InvestmentPlanningResponse
+
+        result_data = {
+            "job_id": str(mock_result_response["job_id"]),
+            "status": mock_result_response["status"],
+            **mock_result_response["result"],
+        }
+        mock_client.get_job_result.return_value = InvestmentPlanningResponse(**result_data)
+        mcp_server._client = mock_client
+
+        with patch("site_calc_investment.mcp.server.get_data_dir", return_value=str(tmp_path)):
+            result = mcp_server.visualize_results(job_id="test_job_mcp_123", open_browser=False)
+
+        assert "summary" in result
+        assert result["summary"]["npv"] == 850000.0
+        assert result["summary"]["irr"] == 0.15
+
+    def test_dashboard_html_exists(self, mock_result_response: dict, tmp_path: object) -> None:
+        import pathlib
+
+        mock_client = MagicMock()
+        from site_calc_investment.models.responses import InvestmentPlanningResponse
+
+        result_data = {
+            "job_id": str(mock_result_response["job_id"]),
+            "status": mock_result_response["status"],
+            **mock_result_response["result"],
+        }
+        mock_client.get_job_result.return_value = InvestmentPlanningResponse(**result_data)
+        mcp_server._client = mock_client
+
+        with patch("site_calc_investment.mcp.server.get_data_dir", return_value=str(tmp_path)):
+            result = mcp_server.visualize_results(job_id="test_job_mcp_123", open_browser=False)
+
+        html_path = pathlib.Path(result["file_path"])
+        assert html_path.exists()
+        content = html_path.read_text(encoding="utf-8")
+        assert "plotly" in content.lower()
+
+
 class TestGetVersion:
     """Tests for get_version tool."""
 

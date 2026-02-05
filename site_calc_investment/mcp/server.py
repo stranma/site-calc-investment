@@ -765,6 +765,44 @@ def get_version() -> dict:
     return result
 
 
+# --- Visualization Tools ---
+
+
+def visualize_results(job_id: str, open_browser: bool = True) -> dict[str, Any]:
+    """Generate an interactive HTML dashboard for a completed optimization job.
+
+    Creates a self-contained HTML file with three tabs:
+    - Financial Analysis: KPIs (NPV, IRR, payback), annual revenue/costs chart, cash flow curve
+    - Energy Balance: Stacked generation/consumption chart, energy summary KPIs
+    - Device Detail: Interactive dispatch and SOC charts with date range drill-down
+
+    The dashboard uses Plotly.js (loaded via CDN) for interactive charts.
+    No additional Python dependencies are required.
+
+    :param job_id: Job identifier (must be a completed job).
+    :param open_browser: Open the dashboard in the default browser (default: True).
+    :returns: Dict with file_path, charts_generated, summary, and message.
+    """
+    client = _get_client()
+    response = client.get_job_result(job_id)
+
+    from site_calc_investment.visualization.dashboard import generate_dashboard
+
+    data_dir = get_data_dir()
+    output_dir = None
+    if data_dir:
+        import os
+
+        output_dir = os.path.join(data_dir, "dashboards")
+
+    return generate_dashboard(
+        job_id=job_id,
+        response=response,
+        open_browser=open_browser,
+        output_dir=output_dir,
+    )
+
+
 # --- Register all functions as MCP tools ---
 
 mcp.tool()(get_version)
@@ -783,3 +821,4 @@ mcp.tool()(cancel_job)
 mcp.tool()(list_jobs)
 mcp.tool()(get_device_schema)
 mcp.tool()(save_data_file)
+mcp.tool()(visualize_results)
