@@ -366,7 +366,7 @@ Downloads the file to `INVESTMENT_DATA_DIR` (or cwd). For CSV files, returns met
 ```
 
 **Typical workflow with web data:**
-```
+```text
 1. LLM calls fetch_url(url="https://example.com/prices.csv")
    -> returns {file_path, rows: 864, columns: [...], ...}
 2. LLM calls set_timespan(scenario_id=sid, start_year=2026, intervals=864)
@@ -412,7 +412,7 @@ Use `get_device_schema(device_type)` for full property documentation.
 
 A typical session for battery arbitrage analysis with web data:
 
-```
+```text
 User: "Evaluate a 20 MWh battery using Czech market prices from
        https://algoenergy.cz/data/hourly/2026.csv"
 

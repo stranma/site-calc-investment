@@ -423,7 +423,14 @@ class ScenarioStore:
         inv_params = None
         if scenario.investment_params:
             ip = scenario.investment_params
-            lifetime = ip.project_lifetime_years or ts_config.years
+            if ip.project_lifetime_years:
+                lifetime = ip.project_lifetime_years
+            elif ts_config.intervals is not None:
+                import math
+
+                lifetime = max(1, math.ceil(ts_config.intervals / 8760))
+            else:
+                lifetime = ts_config.years
             inv_params = InvestmentParameters(
                 discount_rate=ip.discount_rate,
                 project_lifetime_years=lifetime,

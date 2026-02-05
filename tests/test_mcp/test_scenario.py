@@ -422,6 +422,34 @@ class TestScenarioBuildRequest:
         request = store.build_request(sid)
         assert request.timespan.intervals == 864
 
+    def test_build_request_lifetime_fallback_with_intervals(self, store: ScenarioStore) -> None:
+        sid = store.create(name="Lifetime Intervals")
+        store.set_timespan(sid, start_year=2026, intervals=864)
+        store.add_device(
+            scenario_id=sid,
+            device_type="electricity_import",
+            name="Grid",
+            properties={"price": [50.0] * 864, "max_import": 10.0},
+        )
+        store.set_investment_params(sid, discount_rate=0.08, device_capital_costs={"Grid": 100000})
+        request = store.build_request(sid)
+        assert request.investment_parameters is not None
+        assert request.investment_parameters.project_lifetime_years == 1
+
+    def test_build_request_lifetime_fallback_with_large_intervals(self, store: ScenarioStore) -> None:
+        sid = store.create(name="Lifetime Large Intervals")
+        store.set_timespan(sid, start_year=2026, intervals=17520)
+        store.add_device(
+            scenario_id=sid,
+            device_type="electricity_import",
+            name="Grid",
+            properties={"price": [50.0] * 17520, "max_import": 10.0},
+        )
+        store.set_investment_params(sid, discount_rate=0.08, device_capital_costs={"Grid": 100000})
+        request = store.build_request(sid)
+        assert request.investment_parameters is not None
+        assert request.investment_parameters.project_lifetime_years == 2
+
     def test_build_request_with_schedule(self, store: ScenarioStore, scenario_id: str) -> None:
         store.add_device(
             scenario_id=scenario_id,

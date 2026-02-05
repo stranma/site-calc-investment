@@ -273,21 +273,21 @@ def _get_csv_metadata(file_path: str) -> dict[str, Any]:
 
         row_count = 0
         numeric_cols: set[int] = set(range(len(headers)))
+        rows_to_sample = 10
         for row in reader:
             if not row or all(cell.strip() == "" for cell in row):
                 continue
             row_count += 1
-            for i in list(numeric_cols):
-                if i < len(row):
-                    try:
-                        float(row[i])
-                    except ValueError:
-                        numeric_cols.discard(i)
-                if row_count >= 10:
-                    break
-            if row_count < 10:
-                continue
-            row_count += sum(1 for _ in reader)
+            if row_count <= rows_to_sample:
+                for i in list(numeric_cols):
+                    if i < len(row):
+                        try:
+                            float(row[i])
+                        except ValueError:
+                            numeric_cols.discard(i)
+            if row_count == rows_to_sample:
+                row_count += sum(1 for _ in reader)
+                break
 
     numeric_column_names = [headers[i] for i in sorted(numeric_cols) if i < len(headers)]
 
@@ -361,8 +361,8 @@ def fetch_url_to_file(
         try:
             metadata = _get_csv_metadata(resolved)
             result.update(metadata)
-        except Exception:
-            pass
+        except Exception as e:
+            result["metadata_error"] = f"Could not extract CSV metadata: {e}"
 
     result["message"] = f"Downloaded {url} to {resolved}"
     if "rows" in result:
