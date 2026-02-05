@@ -194,6 +194,37 @@ class TestScenarioTimespan:
         assert scenario.timespan.start_year == 2026
         assert scenario.timespan.years == 2
 
+    def test_set_timespan_with_intervals(self, store: ScenarioStore) -> None:
+        sid = store.create(name="Test")
+        result = store.set_timespan(sid, start_year=2026, intervals=864)
+        assert "864" in result
+        assert "2026" in result
+        scenario = store.get(sid)
+        assert scenario.timespan is not None
+        assert scenario.timespan.intervals == 864
+
+    def test_set_timespan_intervals_overrides_years(self, store: ScenarioStore) -> None:
+        sid = store.create(name="Test")
+        store.set_timespan(sid, start_year=2026, years=2, intervals=500)
+        scenario = store.get(sid)
+        assert scenario.timespan is not None
+        assert scenario.timespan.intervals == 500
+
+    def test_set_timespan_intervals_validation(self, store: ScenarioStore) -> None:
+        sid = store.create(name="Test")
+        with pytest.raises(ValueError, match="between 1 and 100,000"):
+            store.set_timespan(sid, start_year=2026, intervals=0)
+        with pytest.raises(ValueError, match="between 1 and 100,000"):
+            store.set_timespan(sid, start_year=2026, intervals=100_001)
+
+    def test_set_timespan_intervals_backward_compat(self, store: ScenarioStore) -> None:
+        sid = store.create(name="Test")
+        result = store.set_timespan(sid, start_year=2025, years=1)
+        assert "8760" in result
+        scenario = store.get(sid)
+        assert scenario.timespan is not None
+        assert scenario.timespan.intervals is None
+
 
 class TestScenarioInvestmentParams:
     """Tests for setting investment parameters."""
@@ -249,6 +280,19 @@ class TestScenarioReview:
         review = store.review(sid)
         assert "Not ready" in review["validation"]
         assert "timespan" in review["validation"].lower()
+
+    def test_review_with_custom_intervals(self, store: ScenarioStore) -> None:
+        sid = store.create(name="Custom")
+        store.set_timespan(sid, start_year=2026, intervals=864)
+        store.add_device(
+            scenario_id=sid,
+            device_type="battery",
+            name="B1",
+            properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+        )
+        review = store.review(sid)
+        assert "864" in review["timespan"]
+        assert "custom" in review["timespan"].lower()
 
     def test_review_with_investment_params(self, store: ScenarioStore, scenario_id: str) -> None:
         store.add_device(
@@ -365,6 +409,18 @@ class TestScenarioBuildRequest:
         request = store.build_request(scenario_id)
         pv = request.sites[0].devices[0]
         assert pv.properties.location.latitude == 50.07
+
+    def test_build_request_with_custom_intervals(self, store: ScenarioStore) -> None:
+        sid = store.create(name="Custom Intervals")
+        store.set_timespan(sid, start_year=2026, intervals=864)
+        store.add_device(
+            scenario_id=sid,
+            device_type="electricity_import",
+            name="Grid",
+            properties={"price": [50.0] * 864, "max_import": 10.0},
+        )
+        request = store.build_request(sid)
+        assert request.timespan.intervals == 864
 
     def test_build_request_with_schedule(self, store: ScenarioStore, scenario_id: str) -> None:
         store.add_device(
