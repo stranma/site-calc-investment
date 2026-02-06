@@ -265,15 +265,20 @@ def _get_csv_metadata(file_path: str) -> dict[str, Any]:
 
         if has_header:
             headers = [h.strip() for h in next(reader)]
+            row_count = 0
         else:
             first_row = next(reader)
             headers = [f"col_{i}" for i in range(len(first_row))]
-            f.seek(0)
-            reader = csv.reader(f, dialect)
-
-        row_count = 0
+            row_count = 1
         numeric_cols: set[int] = set(range(len(headers)))
         rows_to_sample = 10
+        if not has_header:
+            for i in list(numeric_cols):
+                if i < len(first_row):
+                    try:
+                        float(first_row[i])
+                    except ValueError:
+                        numeric_cols.discard(i)
         for row in reader:
             if not row or all(cell.strip() == "" for cell in row):
                 continue

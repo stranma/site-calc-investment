@@ -257,6 +257,17 @@ class TestGetCsvMetadata:
         assert "volume" in metadata["numeric_columns"]
         assert "date" not in metadata["numeric_columns"]
 
+    def test_metadata_headerless_csv(self, tmp_path: object) -> None:
+        import pathlib
+
+        path = pathlib.Path(str(tmp_path)) / "headerless.csv"
+        with open(path, "w", newline="") as f:
+            for i in range(10):
+                f.write(f"{i},{30.0 + i},{100 + i}\n")
+        metadata = _get_csv_metadata(str(path))
+        assert metadata["rows"] == 10
+        assert metadata["columns_count"] == 3
+
 
 def _make_mock_response(content: bytes, status_code: int = 200) -> MagicMock:
     """Create a mock httpx streaming response."""
