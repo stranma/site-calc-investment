@@ -50,7 +50,7 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_list_tools(client: Client) -> None:
-    """All 18 tools are registered and discoverable via MCP protocol."""
+    """All 17 tools are registered and discoverable via MCP protocol."""
     tools = await client.list_tools()
     tool_names = {t.name for t in tools}
     expected = {
@@ -71,7 +71,6 @@ async def test_list_tools(client: Client) -> None:
         "get_device_schema",
         "save_data_file",
         "fetch_url",
-        "visualize_results",
     }
     assert tool_names == expected, f"Missing tools: {expected - tool_names}, Extra: {tool_names - expected}"
 
@@ -239,35 +238,6 @@ async def test_save_data_file_via_mcp(client: Client, tmp_path: object) -> None:
     data = _parse_result(result)
     assert data["rows"] == 3
     assert data["columns"] == ["hour", "price_eur"]
-    assert pathlib.Path(data["file_path"]).exists()
-
-
-@pytest.mark.asyncio
-async def test_visualize_results_via_mcp(client: Client, tmp_path: object, mock_result_response: dict) -> None:
-    """visualize_results generates dashboard via MCP protocol."""
-    import pathlib
-    from unittest.mock import MagicMock, patch
-
-    from site_calc_investment.models.responses import InvestmentPlanningResponse
-
-    mock_client = MagicMock()
-    result_data = {
-        "job_id": str(mock_result_response["job_id"]),
-        "status": mock_result_response["status"],
-        **mock_result_response["result"],
-    }
-    mock_client.get_job_result.return_value = InvestmentPlanningResponse(**result_data)
-    mcp_server._client = mock_client
-
-    with patch("site_calc_investment.mcp.server.get_data_dir", return_value=str(tmp_path)):
-        result = await client.call_tool(
-            "visualize_results",
-            {"job_id": "test_job_mcp_123", "open_browser": False},
-        )
-
-    data = _parse_result(result)
-    assert "file_path" in data
-    assert "charts_generated" in data
     assert pathlib.Path(data["file_path"]).exists()
 
 
