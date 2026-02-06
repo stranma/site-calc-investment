@@ -3,7 +3,7 @@
 **Package:** `site-calc-investment[mcp]`
 **Server name:** `site-calc-investment`
 **Protocol:** MCP (Model Context Protocol) via FastMCP
-**Tools:** 18
+**Tools:** 17
 
 ---
 
@@ -31,7 +31,7 @@ The MCP server runs **locally** on the user's machine. It has full filesystem ac
 
 | Feature | Value |
 |---------|-------|
-| Tools | 18 |
+| Tools | 17 |
 | Device types | 10 |
 | Max horizon | 100,000 intervals (~11 years) |
 | Resolution | 1-hour |

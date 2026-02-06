@@ -52,7 +52,6 @@ from site_calc_investment.models import (
     # Core models
     TimeSpan,
 )
-from site_calc_investment.visualization import generate_dashboard
 
 __all__ = [
     # Client
@@ -82,8 +81,6 @@ __all__ = [
     "Job",
     "InvestmentPlanningResponse",
     "InvestmentMetrics",
-    # Visualization
-    "generate_dashboard",
     # Analysis
     "calculate_npv",
     "calculate_irr",
