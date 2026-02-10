@@ -5,6 +5,23 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.8] - 2026-02-06
+
+### Removed
+- **`visualize_results` MCP tool**: Removed HTML dashboard visualization tool
+  and `generate_dashboard` public API. The visualization module had minimal adoption
+  and added complexity. Dashboard generation may return as a standalone package.
+- **`site_calc_investment.visualization` module**: Entire visualization subpackage removed.
+
+### Fixed
+- **CSV metadata row count**: `_get_csv_metadata` now correctly counts rows in
+  headerless CSV files (off-by-one fix).
+
+### Changed
+- MCP tool count: 18 -> 17
+
+---
+
 ## [1.2.7] - 2026-02-05
 
 ### Added

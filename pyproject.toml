@@ -1,6 +1,6 @@
 [project]
 name = "site-calc-investment"
-version = "1.2.7"
+version = "1.2.8"
 description = "Python client for Site-Calc investment planning (capacity sizing, ROI analysis)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -78,9 +78,6 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = []
-
-[tool.ruff.lint.per-file-ignores]
-"site_calc_investment/visualization/_template.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"

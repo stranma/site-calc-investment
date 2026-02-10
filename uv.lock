@@ -2128,7 +2128,7 @@ wheels = [
 
 [[package]]
 name = "site-calc-investment"
-version = "1.2.6"
+version = "1.2.8"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

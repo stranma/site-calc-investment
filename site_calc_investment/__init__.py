@@ -3,7 +3,7 @@
 Python client for long-term capacity planning and investment ROI analysis.
 """
 
-__version__ = "1.2.7"
+__version__ = "1.2.8"
 
 from site_calc_investment.analysis import (
     aggregate_annual,
