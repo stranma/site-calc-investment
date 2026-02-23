@@ -29,7 +29,7 @@ class Config:
         if not api_url:
             raise ValueError(
                 "INVESTMENT_API_URL environment variable is required. "
-                "Set it to the Site-Calc API URL (e.g., http://site-calc-prod-alb-xxx.elb.amazonaws.com)"
+                "Set it to the Site-Calc API URL (e.g., https://investment.algoenergy.cz)"
             )
         if not api_key:
             raise ValueError(
