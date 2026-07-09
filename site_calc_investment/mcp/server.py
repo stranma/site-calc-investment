@@ -62,7 +62,10 @@ def add_device(
 ) -> str:
     """Add a device to a draft scenario.
 
-    Device types: battery, chp, photovoltaic, heat_accumulator,
+    Device types: battery, chp, heat_accumulator,
+    photovoltaic_nonsteerable, photovoltaic_steerable,
+    fixed_production, max_power_production,
+    fixed_consumption, max_power_consumption,
     electricity_import, electricity_export, gas_import, heat_export,
     electricity_demand, heat_demand.
 
@@ -460,7 +463,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
     Shows required/optional properties, types, units, ranges, and defaults.
     Use this before add_device to know what properties are needed.
 
-    :param device_type: e.g., "battery", "chp", "photovoltaic", "electricity_import".
+    :param device_type: e.g., "battery", "chp", "photovoltaic_steerable", "electricity_import".
     :returns: Schema dict with properties documentation.
     """
     schemas: dict[str, dict[str, Any]] = {
@@ -583,47 +586,99 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                 "loss_rate": 0.001,
             },
         },
-        "photovoltaic": {
-            "device_type": "photovoltaic",
+        "photovoltaic_nonsteerable": {
+            "device_type": "photovoltaic_nonsteerable",
             "properties": {
-                "peak_power_mw": {
-                    "type": "float",
+                "power_profile": {
+                    "type": "list[float]",
                     "required": True,
                     "unit": "MW",
-                    "description": "Peak power capacity",
+                    "description": "Exact PV production per interval (MW). The plant always feeds in this profile.",
                 },
-                "location": {
-                    "type": "object",
-                    "required": True,
-                    "description": "Geographic location {latitude: float, longitude: float}",
-                },
-                "tilt": {
-                    "type": "int",
-                    "required": True,
-                    "range": "0-90",
-                    "unit": "degrees",
-                    "description": "Panel tilt angle",
-                },
-                "azimuth": {
-                    "type": "int",
-                    "required": True,
-                    "range": "0-359",
-                    "unit": "degrees",
-                    "description": "Azimuth (180=south)",
-                },
-                "generation_profile": {
+            },
+            "supports_schedule": False,
+            "example": {"power_profile": [0.0, 0.0, 1.2, 3.5, 4.8, 3.1, 0.9, 0.0]},
+        },
+        "photovoltaic_steerable": {
+            "device_type": "photovoltaic_steerable",
+            "properties": {
+                "max_power_profile": {
                     "type": "list[float]",
-                    "required": False,
-                    "description": "Normalized generation profile (0-1). Loaded from PVGIS if not provided.",
+                    "required": True,
+                    "unit": "MW",
+                    "description": (
+                        "Maximum available PV power per interval (MW), e.g. weather-based. "
+                        "The optimizer produces in [0, max] and curtails when unprofitable (e.g. negative prices)."
+                    ),
                 },
             },
-            "supports_schedule": True,
-            "example": {
-                "peak_power_mw": 5.0,
-                "location": {"latitude": 50.07, "longitude": 14.44},
-                "tilt": 35,
-                "azimuth": 180,
+            "supports_schedule": False,
+            "example": {"max_power_profile": [0.0, 0.0, 1.2, 3.5, 4.8, 3.1, 0.9, 0.0]},
+        },
+        "fixed_production": {
+            "device_type": "fixed_production",
+            "properties": {
+                "power_profile": {
+                    "type": "list[float]",
+                    "required": True,
+                    "unit": "MW",
+                    "description": "Exact production per interval (MW). Non-steerable.",
+                },
             },
+            "supports_schedule": False,
+            "example": {"power_profile": [1.0, 1.0, 1.5, 2.0]},
+        },
+        "max_power_production": {
+            "device_type": "max_power_production",
+            "properties": {
+                "max_power_profile": {
+                    "type": "list[float]",
+                    "required": True,
+                    "unit": "MW",
+                    "description": "Maximum production per interval (MW). Optimizer dispatches in [0, max].",
+                },
+                "cost_per_mwh": {
+                    "type": "float",
+                    "required": False,
+                    "default": 0.0,
+                    "unit": "EUR/MWh",
+                    "description": "Variable production cost. Produces only when the electricity price exceeds it.",
+                },
+            },
+            "supports_schedule": False,
+            "example": {"max_power_profile": [2.0, 2.0, 2.0, 2.0], "cost_per_mwh": 30.0},
+        },
+        "fixed_consumption": {
+            "device_type": "fixed_consumption",
+            "properties": {
+                "power_profile": {
+                    "type": "list[float]",
+                    "required": True,
+                    "unit": "MW",
+                    "description": "Exact consumption per interval (MW). Non-steerable.",
+                },
+            },
+            "supports_schedule": False,
+            "example": {"power_profile": [0.5, 0.5, 0.8, 1.0]},
+        },
+        "max_power_consumption": {
+            "device_type": "max_power_consumption",
+            "properties": {
+                "max_power_profile": {
+                    "type": "list[float]",
+                    "required": True,
+                    "unit": "MW",
+                    "description": "Maximum consumption per interval (MW). Optimizer dispatches in [0, max].",
+                },
+                "value_per_mwh": {
+                    "type": "float",
+                    "required": True,
+                    "unit": "EUR/MWh",
+                    "description": "Value earned per MWh consumed. Consumes only when the price is below it.",
+                },
+            },
+            "supports_schedule": False,
+            "example": {"max_power_profile": [3.0, 3.0, 3.0, 3.0], "value_per_mwh": 50.0},
         },
         "electricity_import": {
             "device_type": "electricity_import",

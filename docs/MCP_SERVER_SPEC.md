@@ -396,7 +396,12 @@ Get the properties schema for a device type.
 | `battery` | Battery energy storage | capacity, max_power, efficiency |
 | `chp` | Combined heat and power | gas_input, el_output, heat_output |
 | `heat_accumulator` | Thermal storage | capacity, max_power, efficiency |
-| `photovoltaic` | Solar PV | peak_power_mw, location, tilt, azimuth |
+| `photovoltaic_nonsteerable` | Solar PV, produces exactly its profile | power_profile |
+| `photovoltaic_steerable` | Solar PV, curtailable in [0, max] | max_power_profile |
+| `fixed_production` | Produces exactly its profile | power_profile |
+| `max_power_production` | Steerable production at a linear cost | max_power_profile, cost_per_mwh |
+| `fixed_consumption` | Consumes exactly its profile | power_profile |
+| `max_power_consumption` | Steerable consumption at a linear value | max_power_profile, value_per_mwh |
 | `electricity_import` | Buy from grid | price, max_import |
 | `electricity_export` | Sell to grid | price, max_export |
 | `gas_import` | Gas supply | price, max_import |

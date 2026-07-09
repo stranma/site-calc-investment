@@ -12,16 +12,23 @@ from site_calc_investment.models.devices import (
     ElectricityDemand,
     ElectricityExport,
     ElectricityImport,
+    FixedConsumption,
+    FixedProduction,
+    FixedProfileProperties,
     GasImport,
     HeatAccumulator,
     HeatAccumulatorProperties,
     HeatDemand,
     HeatExport,
-    Location,
     MarketExportProperties,
     MarketImportProperties,
-    Photovoltaic,
-    PhotovoltaicProperties,
+    MaxPowerConsumption,
+    MaxPowerConsumptionProperties,
+    MaxPowerProduction,
+    MaxPowerProductionProperties,
+    PhotovoltaicNonSteerable,
+    PhotovoltaicSteerable,
+    PhotovoltaicSteerableProperties,
     Schedule,
 )
 
@@ -156,50 +163,103 @@ class TestHeatAccumulator:
         assert ha.properties.loss_rate == 0.001
 
 
-class TestPhotovoltaic:
-    """Tests for Photovoltaic device."""
+class TestPhotovoltaicDevices:
+    """Tests for the steerable/nonsteerable photovoltaic devices."""
 
-    def test_photovoltaic_creation(self):
-        """Test basic PV creation."""
-        pv = Photovoltaic(
+    def test_photovoltaic_nonsteerable_creation(self):
+        """Nonsteerable PV produces exactly its power profile."""
+        profile = [0.0, 1.2, 3.5, 4.8, 3.1, 0.0]
+        pv = PhotovoltaicNonSteerable(
             name="PV1",
-            properties=PhotovoltaicProperties(
-                peak_power_mw=5.0, location=Location(latitude=50.0751, longitude=14.4378), tilt=35, azimuth=180
-            ),
+            properties=FixedProfileProperties(power_profile=profile),
         )
 
         assert pv.name == "PV1"
-        assert pv.type == "photovoltaic"
-        assert pv.properties.peak_power_mw == 5.0
-        assert pv.properties.tilt == 35
-        assert pv.properties.azimuth == 180
+        assert pv.type == "photovoltaic_nonsteerable"
+        assert pv.properties.power_profile == profile
 
-    def test_photovoltaic_with_generation_profile(self):
-        """Test PV with generation profile."""
-        profile = [0.0] * 24 + [0.5] * 48 + [1.0] * 24  # 96 values
-        pv = Photovoltaic(
-            name="PV1",
-            properties=PhotovoltaicProperties(
-                peak_power_mw=5.0,
-                location=Location(latitude=50.0, longitude=14.0),
-                tilt=35,
-                azimuth=180,
-                generation_profile=profile,
-            ),
+    def test_photovoltaic_steerable_creation(self):
+        """Steerable PV takes a max-power profile."""
+        profile = [0.0, 1.2, 3.5, 4.8, 3.1, 0.0]
+        pv = PhotovoltaicSteerable(
+            name="PV2",
+            properties=PhotovoltaicSteerableProperties(max_power_profile=profile),
         )
 
-        assert len(pv.properties.generation_profile) == 96
+        assert pv.type == "photovoltaic_steerable"
+        assert pv.properties.max_power_profile == profile
 
-    def test_photovoltaic_profile_validation(self):
-        """Test PV profile validation (must be 0-1)."""
-        with pytest.raises(ValidationError, match="between 0 and 1"):
-            PhotovoltaicProperties(
-                peak_power_mw=5.0,
-                location=Location(latitude=50.0, longitude=14.0),
-                tilt=35,
-                azimuth=180,
-                generation_profile=[1.5],  # Invalid: > 1
-            )
+    def test_photovoltaic_profile_must_be_non_negative(self):
+        """PV profiles must be non-negative."""
+        with pytest.raises(ValidationError, match="non-negative"):
+            FixedProfileProperties(power_profile=[1.0, -0.5])
+        with pytest.raises(ValidationError, match="non-negative"):
+            PhotovoltaicSteerableProperties(max_power_profile=[-1.0])
+
+
+class TestProfileDevices:
+    """Tests for the fixed/max-power production and consumption devices."""
+
+    def test_fixed_production_creation(self):
+        device = FixedProduction(
+            name="Gen1",
+            properties=FixedProfileProperties(power_profile=[1.0, 1.5, 2.0]),
+        )
+
+        assert device.type == "fixed_production"
+        assert device.properties.power_profile == [1.0, 1.5, 2.0]
+
+    def test_fixed_consumption_creation(self):
+        device = FixedConsumption(
+            name="Load1",
+            properties=FixedProfileProperties(power_profile=[0.5, 0.8, 1.0]),
+        )
+
+        assert device.type == "fixed_consumption"
+        assert device.properties.power_profile == [0.5, 0.8, 1.0]
+
+    def test_max_power_production_creation(self):
+        device = MaxPowerProduction(
+            name="Gen2",
+            properties=MaxPowerProductionProperties(max_power_profile=[2.0] * 4, cost_per_mwh=30.0),
+        )
+
+        assert device.type == "max_power_production"
+        assert device.properties.cost_per_mwh == 30.0
+
+    def test_max_power_production_cost_defaults_to_zero(self):
+        device = MaxPowerProduction(
+            name="Gen2",
+            properties=MaxPowerProductionProperties(max_power_profile=[2.0] * 4),
+        )
+
+        assert device.properties.cost_per_mwh == 0
+
+    def test_max_power_consumption_creation(self):
+        device = MaxPowerConsumption(
+            name="FlexLoad",
+            properties=MaxPowerConsumptionProperties(max_power_profile=[3.0] * 4, value_per_mwh=50.0),
+        )
+
+        assert device.type == "max_power_consumption"
+        assert device.properties.value_per_mwh == 50.0
+
+    def test_max_power_consumption_requires_value(self):
+        """value_per_mwh is required -- a value-less flexible load would never run."""
+        with pytest.raises(ValidationError):
+            MaxPowerConsumptionProperties(max_power_profile=[3.0] * 4)
+
+    def test_profile_must_be_non_negative(self):
+        with pytest.raises(ValidationError, match="non-negative"):
+            MaxPowerProductionProperties(max_power_profile=[2.0, -1.0])
+        with pytest.raises(ValidationError, match="non-negative"):
+            MaxPowerConsumptionProperties(max_power_profile=[-2.0], value_per_mwh=50.0)
+
+    def test_negative_rates_rejected(self):
+        with pytest.raises(ValidationError):
+            MaxPowerProductionProperties(max_power_profile=[2.0], cost_per_mwh=-10.0)
+        with pytest.raises(ValidationError):
+            MaxPowerConsumptionProperties(max_power_profile=[2.0], value_per_mwh=-10.0)
 
 
 class TestDemandDevices:

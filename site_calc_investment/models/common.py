@@ -160,7 +160,7 @@ class TimeSpan(BaseModel):
 
 
 class Location(BaseModel):
-    """Geographic location for devices like photovoltaic systems.
+    """Geographic location (latitude/longitude).
 
     Attributes:
         latitude: Latitude in degrees (-90 to 90)

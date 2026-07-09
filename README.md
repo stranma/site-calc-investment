@@ -113,7 +113,9 @@ print(f"Profit: €{result.summary.expected_profit:,.2f}")
 - Battery (NO ANS)
 - CHP - Combined Heat and Power (continuous operation)
 - Heat Accumulator
-- Photovoltaic
+- Photovoltaic (non-steerable: exact profile / steerable: curtailable up to a max-power profile)
+- Fixed Production / Fixed Consumption (follow a power profile exactly)
+- Max-Power Production / Consumption (steerable in [0, max] at a linear EUR/MWh cost or value)
 - Heat Demand
 - Electricity Demand
 - Electricity Import/Export (market interface)

@@ -329,7 +329,12 @@ class TestGetDeviceSchema:
             "battery",
             "chp",
             "heat_accumulator",
-            "photovoltaic",
+            "photovoltaic_nonsteerable",
+            "photovoltaic_steerable",
+            "fixed_production",
+            "max_power_production",
+            "fixed_consumption",
+            "max_power_consumption",
             "electricity_import",
             "electricity_export",
             "gas_import",
@@ -340,6 +345,10 @@ class TestGetDeviceSchema:
         for dtype in types:
             schema = mcp_server.get_device_schema(dtype)
             assert "properties" in schema, f"No properties for {dtype}"
+
+    def test_legacy_photovoltaic_type_removed(self) -> None:
+        result = mcp_server.get_device_schema("photovoltaic")
+        assert "error" in result
 
     def test_unknown_type_returns_error(self) -> None:
         result = mcp_server.get_device_schema("fusion_reactor")

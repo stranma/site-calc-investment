@@ -14,6 +14,9 @@ from site_calc_investment.models.devices import (
     ElectricityDemand,
     ElectricityExport,
     ElectricityImport,
+    FixedConsumption,
+    FixedProduction,
+    FixedProfileProperties,
     GasImport,
     HeatAccumulator,
     HeatAccumulatorProperties,
@@ -21,8 +24,13 @@ from site_calc_investment.models.devices import (
     HeatExport,
     MarketExportProperties,
     MarketImportProperties,
-    Photovoltaic,
-    PhotovoltaicProperties,
+    MaxPowerConsumption,
+    MaxPowerConsumptionProperties,
+    MaxPowerProduction,
+    MaxPowerProductionProperties,
+    PhotovoltaicNonSteerable,
+    PhotovoltaicSteerable,
+    PhotovoltaicSteerableProperties,
     Schedule,
 )
 from site_calc_investment.models.requests import (
@@ -91,7 +99,12 @@ DEVICE_TYPE_MAP: dict[str, str] = {
     "battery": "battery",
     "chp": "chp",
     "heat_accumulator": "heat_accumulator",
-    "photovoltaic": "photovoltaic",
+    "photovoltaic_nonsteerable": "photovoltaic_nonsteerable",
+    "photovoltaic_steerable": "photovoltaic_steerable",
+    "fixed_production": "fixed_production",
+    "max_power_production": "max_power_production",
+    "fixed_consumption": "fixed_consumption",
+    "max_power_consumption": "max_power_consumption",
     "heat_demand": "heat_demand",
     "electricity_demand": "electricity_demand",
     "electricity_import": "electricity_import",
@@ -133,14 +146,26 @@ def _build_device(config: DeviceConfig, expected_length: Optional[int]) -> Any:
     elif dtype == "heat_accumulator":
         return HeatAccumulator(name=config.name, properties=HeatAccumulatorProperties(**props), schedule=schedule)
 
-    elif dtype == "photovoltaic":
-        if "location" in props and isinstance(props["location"], dict):
-            from site_calc_investment.models.common import Location
+    elif dtype in ("photovoltaic_nonsteerable", "fixed_production", "fixed_consumption"):
+        props["power_profile"] = resolve_price_or_profile(props["power_profile"], expected_length)
+        model = {
+            "photovoltaic_nonsteerable": PhotovoltaicNonSteerable,
+            "fixed_production": FixedProduction,
+            "fixed_consumption": FixedConsumption,
+        }[dtype]
+        return model(name=config.name, properties=FixedProfileProperties(**props))
 
-            props["location"] = Location(**props["location"])
-        if "generation_profile" in props and props["generation_profile"] is not None:
-            props["generation_profile"] = resolve_price_or_profile(props["generation_profile"], expected_length)
-        return Photovoltaic(name=config.name, properties=PhotovoltaicProperties(**props), schedule=schedule)
+    elif dtype == "photovoltaic_steerable":
+        props["max_power_profile"] = resolve_price_or_profile(props["max_power_profile"], expected_length)
+        return PhotovoltaicSteerable(name=config.name, properties=PhotovoltaicSteerableProperties(**props))
+
+    elif dtype == "max_power_production":
+        props["max_power_profile"] = resolve_price_or_profile(props["max_power_profile"], expected_length)
+        return MaxPowerProduction(name=config.name, properties=MaxPowerProductionProperties(**props))
+
+    elif dtype == "max_power_consumption":
+        props["max_power_profile"] = resolve_price_or_profile(props["max_power_profile"], expected_length)
+        return MaxPowerConsumption(name=config.name, properties=MaxPowerConsumptionProperties(**props))
 
     elif dtype == "heat_demand":
         props["max_demand_profile"] = resolve_price_or_profile(props["max_demand_profile"], expected_length)
@@ -503,9 +528,19 @@ def _device_summary(config: DeviceConfig) -> str:
         eff_str = f"{float(eff) * 100:.0f}%" if isinstance(eff, (int, float)) else str(eff)
         return f"{cap} MWh / {pwr} MW / {eff_str} eff (thermal)"
 
-    elif dtype == "photovoltaic":
-        peak = props.get("peak_power_mw", "?")
-        return f"{peak} MW peak"
+    elif dtype in ("photovoltaic_nonsteerable", "fixed_production", "fixed_consumption"):
+        profile = props.get("power_profile", [])
+        if isinstance(profile, list) and profile:
+            return f"fixed, peak {max(profile):.1f} MW, {len(profile)} intervals"
+        return "fixed power profile configured"
+
+    elif dtype in ("photovoltaic_steerable", "max_power_production", "max_power_consumption"):
+        profile = props.get("max_power_profile", [])
+        rate = props.get("cost_per_mwh", props.get("value_per_mwh"))
+        rate_str = f", {rate} EUR/MWh" if isinstance(rate, (int, float)) else ""
+        if isinstance(profile, list) and profile:
+            return f"steerable, peak {max(profile):.1f} MW, {len(profile)} intervals{rate_str}"
+        return f"steerable max-power profile configured{rate_str}"
 
     elif dtype in ("heat_demand", "electricity_demand"):
         profile = props.get("max_demand_profile", [])

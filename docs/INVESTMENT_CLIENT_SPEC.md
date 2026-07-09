@@ -156,7 +156,37 @@ chp = CHP(
 
 **Note:** Even if `is_binary=True`, the optimizer will relax to continuous operation for computational tractability over long horizons.
 
-#### 4.2.3 Market Devices
+#### 4.2.3 Profile Devices (PV, fixed and steerable production/consumption)
+
+```python
+from site_calc_investment.models import (
+    PhotovoltaicNonSteerable,   # produces exactly power_profile
+    PhotovoltaicSteerable,      # produces in [0, max_power_profile], curtailable
+    FixedProduction,            # same semantics as nonsteerable PV
+    MaxPowerProduction,         # steerable production at cost_per_mwh (EUR/MWh)
+    FixedConsumption,           # consumes exactly power_profile
+    MaxPowerConsumption,        # steerable consumption worth value_per_mwh (EUR/MWh)
+)
+
+pv = PhotovoltaicSteerable(
+    name="FVE",
+    properties={
+        "max_power_profile": [0.0, 0.0, 1.2, 3.5, 4.8, 3.1, 0.9, 0.0] * 1095,  # MW per interval
+    },
+)
+
+flex_load = MaxPowerConsumption(
+    name="Electrolyzer",
+    properties={
+        "max_power_profile": [3.0] * 8760,  # MW
+        "value_per_mwh": 50.0,              # consumes only when price < 50 EUR/MWh
+    },
+)
+```
+
+All profiles are absolute power in MW per interval, matching the timespan length. The steerable variants let the optimizer curtail production (e.g. at negative prices) or shift consumption to cheap hours.
+
+#### 4.2.4 Market Devices
 
 ```python
 from site_calc_investment.models import ElectricityImport, ElectricityExport

@@ -3,7 +3,7 @@
 Python client for long-term capacity planning and investment ROI analysis.
 """
 
-__version__ = "1.2.8"
+__version__ = "1.2.9"
 
 from site_calc_investment.analysis import (
     aggregate_annual,
@@ -31,6 +31,8 @@ from site_calc_investment.models import (
     ElectricityDemand,
     ElectricityExport,
     ElectricityImport,
+    FixedConsumption,
+    FixedProduction,
     GasImport,
     HeatAccumulator,
     HeatDemand,
@@ -43,8 +45,11 @@ from site_calc_investment.models import (
     # Response models
     Job,
     Location,
+    MaxPowerConsumption,
+    MaxPowerProduction,
     OptimizationConfig,
-    Photovoltaic,
+    PhotovoltaicNonSteerable,
+    PhotovoltaicSteerable,
     Resolution,
     Schedule,
     # Site and configuration
@@ -64,7 +69,12 @@ __all__ = [
     "Battery",
     "CHP",
     "HeatAccumulator",
-    "Photovoltaic",
+    "PhotovoltaicNonSteerable",
+    "PhotovoltaicSteerable",
+    "FixedProduction",
+    "MaxPowerProduction",
+    "FixedConsumption",
+    "MaxPowerConsumption",
     "HeatDemand",
     "ElectricityDemand",
     "ElectricityImport",

@@ -129,16 +129,12 @@ class TestScenarioAddDevice:
             ("battery", "B1", {"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9}),
             ("chp", "CHP1", {"gas_input": 4.0, "el_output": 2.0, "heat_output": 1.5}),
             ("heat_accumulator", "HA1", {"capacity": 50.0, "max_power": 10.0, "efficiency": 0.95}),
-            (
-                "photovoltaic",
-                "PV1",
-                {
-                    "peak_power_mw": 5.0,
-                    "location": {"latitude": 50.07, "longitude": 14.44},
-                    "tilt": 35,
-                    "azimuth": 180,
-                },
-            ),
+            ("photovoltaic_nonsteerable", "PV1", {"power_profile": [1.0, 2.0, 3.0]}),
+            ("photovoltaic_steerable", "PV2", {"max_power_profile": [1.0, 2.0, 3.0]}),
+            ("fixed_production", "FP1", {"power_profile": [1.0, 1.5]}),
+            ("max_power_production", "MP1", {"max_power_profile": [2.0, 2.0], "cost_per_mwh": 30.0}),
+            ("fixed_consumption", "FC1", {"power_profile": [0.5, 0.8]}),
+            ("max_power_consumption", "MC1", {"max_power_profile": [3.0, 3.0], "value_per_mwh": 50.0}),
             ("electricity_import", "EI1", {"price": 50.0, "max_import": 10.0}),
             ("electricity_export", "EE1", {"price": 50.0, "max_export": 10.0}),
             ("gas_import", "GI1", {"price": 35.0, "max_import": 5.0}),
@@ -149,7 +145,7 @@ class TestScenarioAddDevice:
         for dtype, name, props in device_configs:
             store.add_device(scenario_id=scenario_id, device_type=dtype, name=name, properties=props)
         scenario = store.get(scenario_id)
-        assert len(scenario.devices) == 10
+        assert len(scenario.devices) == 15
 
 
 class TestScenarioRemoveDevice:
@@ -394,21 +390,41 @@ class TestScenarioBuildRequest:
         request = store.build_request(scenario_id, solver_timeout=2000)
         assert request.optimization_config.time_limit_seconds == 900
 
-    def test_build_request_with_pv_location_dict(self, store: ScenarioStore, scenario_id: str) -> None:
+    def test_build_request_with_steerable_pv(self, store: ScenarioStore, scenario_id: str) -> None:
         store.add_device(
             scenario_id=scenario_id,
-            device_type="photovoltaic",
+            device_type="photovoltaic_steerable",
             name="PV1",
-            properties={
-                "peak_power_mw": 5.0,
-                "location": {"latitude": 50.07, "longitude": 14.44},
-                "tilt": 35,
-                "azimuth": 180,
-            },
+            properties={"max_power_profile": 4.5},  # scalar shorthand -> expanded to timespan
         )
         request = store.build_request(scenario_id)
         pv = request.sites[0].devices[0]
-        assert pv.properties.location.latitude == 50.07
+        assert pv.type == "photovoltaic_steerable"
+        assert all(v == 4.5 for v in pv.properties.max_power_profile)
+
+    def test_build_request_with_fixed_consumption(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(
+            scenario_id=scenario_id,
+            device_type="fixed_consumption",
+            name="Load1",
+            properties={"power_profile": 1.5},  # scalar shorthand -> expanded to timespan
+        )
+        request = store.build_request(scenario_id)
+        device = request.sites[0].devices[0]
+        assert device.type == "fixed_consumption"
+        assert all(v == 1.5 for v in device.properties.power_profile)
+
+    def test_build_request_with_max_power_consumption(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(
+            scenario_id=scenario_id,
+            device_type="max_power_consumption",
+            name="FlexLoad",
+            properties={"max_power_profile": 3.0, "value_per_mwh": 50.0},
+        )
+        request = store.build_request(scenario_id)
+        device = request.sites[0].devices[0]
+        assert device.type == "max_power_consumption"
+        assert device.properties.value_per_mwh == 50.0
 
     def test_build_request_with_custom_intervals(self, store: ScenarioStore) -> None:
         sid = store.create(name="Custom Intervals")
