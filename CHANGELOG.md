@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.9] - 2026-07-09
 
 ### Added
+
 - **Profile-based device types** (6 new): `fixed_production` and `fixed_consumption`
   (produce/consume exactly a `power_profile` in MW), `max_power_production`
   (steerable in `[0, max_power_profile]` at a linear `cost_per_mwh`) and
@@ -19,12 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   properties accept the usual shorthands (scalar, `{"file": ...}`, raw list).
 
 ### Removed
+
 - **`Photovoltaic` device** (`photovoltaic` type) with `location`/`tilt`/`azimuth`/
   `peak_power_mw`: replaced by the two explicit PV variants above. Users now supply
   the power profile directly (e.g. from a weather service or measured data) instead
   of site geometry.
 
 ### Changed
+
 - Requires a server release that accepts the new device types; older servers
   reject them during validation.
 

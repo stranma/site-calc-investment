@@ -137,7 +137,7 @@ Add a device to a draft scenario.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `scenario_id` | string | Yes | Target scenario |
-| `device_type` | string | Yes | One of 10 device types (see Section 4) |
+| `device_type` | string | Yes | One of 15 device types (see Section 4) |
 | `name` | string | Yes | Unique device name within scenario |
 | `properties` | object | Yes | Device-specific properties |
 | `schedule` | object | No | Runtime constraints |

@@ -55,7 +55,9 @@ class FixedProfileProperties(BaseModel):
     @field_validator("power_profile")
     @classmethod
     def validate_non_negative(cls, v: List[float]) -> List[float]:
-        """Validate profile values are non-negative."""
+        """Validate profile is non-empty with non-negative values."""
+        if not v:
+            raise ValueError("power_profile must not be empty")
         if not all(val >= 0 for val in v):
             raise ValueError("power_profile values must be non-negative")
         return v
@@ -70,7 +72,9 @@ class MaxPowerConsumptionProperties(BaseModel):
     @field_validator("max_power_profile")
     @classmethod
     def validate_non_negative(cls, v: List[float]) -> List[float]:
-        """Validate profile values are non-negative."""
+        """Validate profile is non-empty with non-negative values."""
+        if not v:
+            raise ValueError("max_power_profile must not be empty")
         if not all(val >= 0 for val in v):
             raise ValueError("max_power_profile values must be non-negative")
         return v
@@ -85,7 +89,9 @@ class MaxPowerProductionProperties(BaseModel):
     @field_validator("max_power_profile")
     @classmethod
     def validate_non_negative(cls, v: List[float]) -> List[float]:
-        """Validate profile values are non-negative."""
+        """Validate profile is non-empty with non-negative values."""
+        if not v:
+            raise ValueError("max_power_profile must not be empty")
         if not all(val >= 0 for val in v):
             raise ValueError("max_power_profile values must be non-negative")
         return v
@@ -101,7 +107,9 @@ class PhotovoltaicSteerableProperties(BaseModel):
     @field_validator("max_power_profile")
     @classmethod
     def validate_non_negative(cls, v: List[float]) -> List[float]:
-        """Validate profile values are non-negative."""
+        """Validate profile is non-empty with non-negative values."""
+        if not v:
+            raise ValueError("max_power_profile must not be empty")
         if not all(val >= 0 for val in v):
             raise ValueError("max_power_profile values must be non-negative")
         return v

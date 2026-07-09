@@ -590,7 +590,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
             "device_type": "photovoltaic_nonsteerable",
             "properties": {
                 "power_profile": {
-                    "type": "list[float]",
+                    "type": "float | list[float] | {file: str}",
                     "required": True,
                     "unit": "MW",
                     "description": "Exact PV production per interval (MW). The plant always feeds in this profile.",
@@ -603,7 +603,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
             "device_type": "photovoltaic_steerable",
             "properties": {
                 "max_power_profile": {
-                    "type": "list[float]",
+                    "type": "float | list[float] | {file: str}",
                     "required": True,
                     "unit": "MW",
                     "description": (
@@ -619,7 +619,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
             "device_type": "fixed_production",
             "properties": {
                 "power_profile": {
-                    "type": "list[float]",
+                    "type": "float | list[float] | {file: str}",
                     "required": True,
                     "unit": "MW",
                     "description": "Exact production per interval (MW). Non-steerable.",
@@ -632,7 +632,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
             "device_type": "max_power_production",
             "properties": {
                 "max_power_profile": {
-                    "type": "list[float]",
+                    "type": "float | list[float] | {file: str}",
                     "required": True,
                     "unit": "MW",
                     "description": "Maximum production per interval (MW). Optimizer dispatches in [0, max].",
@@ -652,7 +652,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
             "device_type": "fixed_consumption",
             "properties": {
                 "power_profile": {
-                    "type": "list[float]",
+                    "type": "float | list[float] | {file: str}",
                     "required": True,
                     "unit": "MW",
                     "description": "Exact consumption per interval (MW). Non-steerable.",
@@ -665,7 +665,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
             "device_type": "max_power_consumption",
             "properties": {
                 "max_power_profile": {
-                    "type": "list[float]",
+                    "type": "float | list[float] | {file: str}",
                     "required": True,
                     "unit": "MW",
                     "description": "Maximum consumption per interval (MW). Optimizer dispatches in [0, max].",

@@ -400,6 +400,7 @@ class TestScenarioBuildRequest:
         request = store.build_request(scenario_id)
         pv = request.sites[0].devices[0]
         assert pv.type == "photovoltaic_steerable"
+        assert len(pv.properties.max_power_profile) == 8760
         assert all(v == 4.5 for v in pv.properties.max_power_profile)
 
     def test_build_request_with_fixed_consumption(self, store: ScenarioStore, scenario_id: str) -> None:
@@ -412,6 +413,7 @@ class TestScenarioBuildRequest:
         request = store.build_request(scenario_id)
         device = request.sites[0].devices[0]
         assert device.type == "fixed_consumption"
+        assert len(device.properties.power_profile) == 8760
         assert all(v == 1.5 for v in device.properties.power_profile)
 
     def test_build_request_with_max_power_consumption(self, store: ScenarioStore, scenario_id: str) -> None:
@@ -424,6 +426,8 @@ class TestScenarioBuildRequest:
         request = store.build_request(scenario_id)
         device = request.sites[0].devices[0]
         assert device.type == "max_power_consumption"
+        assert len(device.properties.max_power_profile) == 8760
+        assert all(v == 3.0 for v in device.properties.max_power_profile)
         assert device.properties.value_per_mwh == 50.0
 
     def test_build_request_with_custom_intervals(self, store: ScenarioStore) -> None:

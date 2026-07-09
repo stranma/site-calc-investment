@@ -255,6 +255,16 @@ class TestProfileDevices:
         with pytest.raises(ValidationError, match="non-negative"):
             MaxPowerConsumptionProperties(max_power_profile=[-2.0], value_per_mwh=50.0)
 
+    def test_empty_profile_rejected(self):
+        with pytest.raises(ValidationError, match="must not be empty"):
+            FixedProfileProperties(power_profile=[])
+        with pytest.raises(ValidationError, match="must not be empty"):
+            MaxPowerProductionProperties(max_power_profile=[])
+        with pytest.raises(ValidationError, match="must not be empty"):
+            MaxPowerConsumptionProperties(max_power_profile=[], value_per_mwh=50.0)
+        with pytest.raises(ValidationError, match="must not be empty"):
+            PhotovoltaicSteerableProperties(max_power_profile=[])
+
     def test_negative_rates_rejected(self):
         with pytest.raises(ValidationError):
             MaxPowerProductionProperties(max_power_profile=[2.0], cost_per_mwh=-10.0)
