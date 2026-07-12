@@ -5,6 +5,34 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.9] - 2026-07-09
+
+### Added
+
+- **Profile-based device types** (6 new): `fixed_production` and `fixed_consumption`
+  (produce/consume exactly a `power_profile` in MW), `max_power_production`
+  (steerable in `[0, max_power_profile]` at a linear `cost_per_mwh`) and
+  `max_power_consumption` (steerable, each MWh consumed worth `value_per_mwh`),
+  plus `photovoltaic_nonsteerable` / `photovoltaic_steerable` -- PV-named variants
+  of the two production devices. Steerable PV is curtailed automatically when
+  producing is unprofitable (e.g. negative prices).
+- MCP: `add_device` and `get_device_schema` support all six new types; profile
+  properties accept the usual shorthands (scalar, `{"file": ...}`, raw list).
+
+### Removed
+
+- **`Photovoltaic` device** (`photovoltaic` type) with `location`/`tilt`/`azimuth`/
+  `peak_power_mw`: replaced by the two explicit PV variants above. Users now supply
+  the power profile directly (e.g. from a weather service or measured data) instead
+  of site geometry.
+
+### Changed
+
+- Requires a server release that accepts the new device types; older servers
+  reject them during validation.
+
+---
+
 ## [1.2.8] - 2026-02-06
 
 ### Removed

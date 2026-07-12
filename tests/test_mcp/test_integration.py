@@ -181,7 +181,7 @@ async def test_full_scenario_assembly_via_mcp(client: Client) -> None:
 
 @pytest.mark.asyncio
 async def test_all_device_types_via_mcp(client: Client) -> None:
-    """All 10 device types can be added via MCP protocol."""
+    """All 15 device types can be added via MCP protocol."""
     data = _parse_result(await client.call_tool("create_scenario", {"name": "All Devices Test"}))
     sid = data["scenario_id"]
 
@@ -191,16 +191,12 @@ async def test_all_device_types_via_mcp(client: Client) -> None:
         ("battery", "B1", {"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9}),
         ("chp", "CHP1", {"gas_input": 4.0, "el_output": 2.0, "heat_output": 1.5}),
         ("heat_accumulator", "HA1", {"capacity": 50.0, "max_power": 10.0, "efficiency": 0.95}),
-        (
-            "photovoltaic",
-            "PV1",
-            {
-                "peak_power_mw": 5.0,
-                "location": {"latitude": 50.07, "longitude": 14.44},
-                "tilt": 35,
-                "azimuth": 180,
-            },
-        ),
+        ("photovoltaic_nonsteerable", "PV1", {"power_profile": 4.0}),
+        ("photovoltaic_steerable", "PV2", {"max_power_profile": 4.0}),
+        ("fixed_production", "FP1", {"power_profile": 1.0}),
+        ("max_power_production", "MP1", {"max_power_profile": 2.0, "cost_per_mwh": 30.0}),
+        ("fixed_consumption", "FC1", {"power_profile": 0.5}),
+        ("max_power_consumption", "MC1", {"max_power_profile": 3.0, "value_per_mwh": 50.0}),
         ("electricity_import", "EI1", {"price": 50.0, "max_import": 10.0}),
         ("electricity_export", "EE1", {"price": 50.0, "max_export": 10.0}),
         ("gas_import", "GI1", {"price": 35.0, "max_import": 5.0}),
@@ -216,7 +212,7 @@ async def test_all_device_types_via_mcp(client: Client) -> None:
         )
 
     review = _parse_result(await client.call_tool("review_scenario", {"scenario_id": sid}))
-    assert len(review["devices"]) == 10
+    assert len(review["devices"]) == 15
     assert "Valid" in review["validation"]
 
 
