@@ -70,7 +70,7 @@ from site_calc_investment import InvestmentClient
 
 client = InvestmentClient(
     base_url="https://api.site-calc.example.com",
-    api_key="inv_9876543210fedcba"  # Must start with 'inv_'
+    api_key="inv_9876543210fedcba",  # Must start with 'inv_'
 )
 ```
 
@@ -91,20 +91,16 @@ from site_calc_investment.models import TimeSpan, Resolution
 ts = TimeSpan(
     start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
     intervals=87600,  # 10 years × 8760 hours/year
-    resolution=Resolution.HOUR_1
+    resolution=Resolution.HOUR_1,
 )
 
 # Helper for full years
-ts = TimeSpan.for_years(
-    start_year=2025,
-    years=10,
-    resolution=Resolution.HOUR_1
-)
+ts = TimeSpan.for_years(start_year=2025, years=10, resolution=Resolution.HOUR_1)
 
 # Access computed properties
-print(ts.end)         # 2035-01-01 00:00:00+01:00
-print(ts.duration)    # timedelta(days=3650)
-print(ts.years)       # 10.0
+print(ts.end)  # 2035-01-01 00:00:00+01:00
+print(ts.duration)  # timedelta(days=3650)
+print(ts.years)  # 10.0
 ```
 
 **Validation:**
@@ -126,13 +122,13 @@ from site_calc_investment.models import Battery
 battery = Battery(
     name="Battery1",
     properties={
-        "capacity": 10.0,          # MWh
-        "max_power": 5.0,          # MW
-        "efficiency": 0.90,        # 0-1
-        "initial_soc": 0.5         # 0-1
+        "capacity": 10.0,  # MWh
+        "max_power": 5.0,  # MW
+        "efficiency": 0.90,  # 0-1
+        "initial_soc": 0.5,  # 0-1
     },
     # Optional fixed costs for client-side NPV/IRR (never sent to the API):
-    investment={"capital_cost": 500000, "annual_opex": 5000}
+    investment={"capital_cost": 500000, "annual_opex": 5000},
     # No ancillary_services field!
 )
 ```
@@ -161,11 +157,9 @@ chp = CHP(
         "gas_input": 8.0,
         "el_output": 3.0,
         "heat_output": 4.0,
-        "is_binary": False  # Treated as continuous for investment planning
+        "is_binary": False,  # Treated as continuous for investment planning
     },
-    schedule={
-        "max_hours_per_day": 20.0
-    }
+    schedule={"max_hours_per_day": 20.0},
 )
 ```
 
@@ -175,12 +169,12 @@ chp = CHP(
 
 ```python
 from site_calc_investment.models import (
-    PhotovoltaicNonSteerable,   # produces exactly power_profile
-    PhotovoltaicSteerable,      # produces in [0, max_power_profile], curtailable
-    FixedProduction,            # same semantics as nonsteerable PV
-    MaxPowerProduction,         # steerable production at cost_per_mwh (EUR/MWh)
-    FixedConsumption,           # consumes exactly power_profile
-    MaxPowerConsumption,        # steerable consumption worth value_per_mwh (EUR/MWh)
+    PhotovoltaicNonSteerable,  # produces exactly power_profile
+    PhotovoltaicSteerable,  # produces in [0, max_power_profile], curtailable
+    FixedProduction,  # same semantics as nonsteerable PV
+    MaxPowerProduction,  # steerable production at cost_per_mwh (EUR/MWh)
+    FixedConsumption,  # consumes exactly power_profile
+    MaxPowerConsumption,  # steerable consumption worth value_per_mwh (EUR/MWh)
 )
 
 pv = PhotovoltaicSteerable(
@@ -194,7 +188,7 @@ flex_load = MaxPowerConsumption(
     name="Electrolyzer",
     properties={
         "max_power_profile": [3.0] * 8760,  # MW
-        "value_per_mwh": 50.0,              # consumes only when price < 50 EUR/MWh
+        "value_per_mwh": 50.0,  # consumes only when price < 50 EUR/MWh
     },
 )
 ```
@@ -208,14 +202,14 @@ from site_calc_investment.models import ElectricityImport, ElectricityExport
 
 # Prices for 10 years (87,600 hourly values), e.g. with 2% annual escalation
 base_year_prices = [30.0] * 8760
-prices_10y = [p * (1.02 ** year) for year in range(10) for p in base_year_prices]
+prices_10y = [p * (1.02**year) for year in range(10) for p in base_year_prices]
 
 grid_import = ElectricityImport(
     name="GridImport",
     properties={
         "price": prices_10y,  # 87,600 values
-        "max_import": 8.0
-    }
+        "max_import": 8.0,
+    },
 )
 ```
 
@@ -235,8 +229,8 @@ Global financial parameters only:
 from site_calc_investment.models import InvestmentParameters
 
 inv_params = InvestmentParameters(
-    discount_rate=0.05,        # 5% discount rate for NPV
-    project_lifetime_years=10  # Required
+    discount_rate=0.05,  # 5% discount rate for NPV
+    project_lifetime_years=10,  # Required
 )
 ```
 
@@ -286,8 +280,8 @@ from site_calc_investment.models import Battery
 battery = Battery(
     name="BESS",
     properties={
-        "capacity": 20.0,      # MWh
-        "max_power": 10.0,     # MW -- sizing ceiling
+        "capacity": 20.0,  # MWh
+        "max_power": 10.0,  # MW -- sizing ceiling
         "efficiency": 0.90,
         "power_sizing": {
             "periods": "horizon",
@@ -309,13 +303,13 @@ from site_calc_investment.models import CzDistributionImport
 grid = CzDistributionImport(
     name="Grid",
     properties={
-        "price": prices,            # EUR/MWh energy price profile
-        "max_import": 10.0,         # physical connection limit (MW)
+        "price": prices,  # EUR/MWh energy price profile
+        "max_import": 10.0,  # physical connection limit (MW)
         "t1_reserved_price": 86000,  # EUR/MW/month
-        "t1_peak_price": 30000,      # EUR/MW/month
+        "t1_peak_price": 30000,  # EUR/MW/month
         "t2_reserved_price": 65000,  # EUR/MW/month
-        "t2_peak_price": 95000,      # EUR/MW/month
-        "reserved_capacity": None,   # None -> optimizer sizes it
+        "t2_peak_price": 95000,  # EUR/MW/month
+        "reserved_capacity": None,  # None -> optimizer sizes it
         # "timezone": "Europe/Prague" (default)
     },
 )
@@ -334,15 +328,7 @@ from site_calc_investment.models import Site
 site = Site(
     site_id="investment_analysis_site",
     description="10-year capacity planning scenario",
-    devices=[
-        battery,
-        chp,
-        heat_accumulator,
-        pv,
-        grid_import,
-        grid_export,
-        gas_import
-    ]
+    devices=[battery, chp, heat_accumulator, pv, grid_import, grid_export, gas_import],
 )
 ```
 
@@ -354,11 +340,7 @@ site = Site(
 
 ```python
 from site_calc_investment import InvestmentClient
-from site_calc_investment.models import (
-    InvestmentPlanningRequest,
-    OptimizationConfig,
-    Resolution
-)
+from site_calc_investment.models import InvestmentPlanningRequest, OptimizationConfig, Resolution
 from site_calc_investment.models.requests import TimeSpanInvestment
 
 client = InvestmentClient(base_url="...", api_key="inv_...")
@@ -367,7 +349,7 @@ client = InvestmentClient(base_url="...", api_key="inv_...")
 timespan = TimeSpanInvestment(
     start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
     intervals=87600,  # 10 years
-    resolution=Resolution.HOUR_1
+    resolution=Resolution.HOUR_1,
 )
 
 request = InvestmentPlanningRequest(
@@ -377,8 +359,8 @@ request = InvestmentPlanningRequest(
     optimization_config=OptimizationConfig(
         objective="maximize_profit",
         time_limit_seconds=900,  # 15 minute maximum
-        relax_binary_variables=True
-    )
+        relax_binary_variables=True,
+    ),
 )
 
 # Submit job
@@ -389,7 +371,7 @@ print(f"Job ID: {job.job_id}")
 result = client.wait_for_completion(
     job.job_id,
     poll_interval=30,  # Check every 30 seconds
-    timeout=7200       # 2 hour max wait
+    timeout=7200,  # 2 hour max wait
 )
 
 # Compute investment metrics client-side from the annual aggregates
@@ -402,7 +384,7 @@ metrics = calculate_investment_metrics(
     devices=site.devices,  # sums the devices' investment blocks
 )
 print(f"NPV: €{metrics['npv']:,.0f}")
-print(f"IRR: {metrics['irr']*100:.2f}%")
+print(f"IRR: {metrics['irr'] * 100:.2f}%")
 print(f"Payback: {metrics['payback_period_years']:.1f} years")
 ```
 
@@ -479,7 +461,7 @@ annual_cash_flows = result.investment_metrics.annual_revenue_by_year
 npv = calculate_npv(
     cash_flows=annual_cash_flows,
     discount_rate=0.05,
-    initial_investment=-1500000  # €1.5M CAPEX
+    initial_investment=-1500000,  # €1.5M CAPEX
 )
 print(f"NPV: €{npv:,.0f}")
 ```
@@ -493,7 +475,7 @@ from site_calc_investment.analysis import calculate_irr
 cash_flows = [-1500000] + annual_cash_flows  # Prepend CAPEX
 
 irr = calculate_irr(cash_flows)
-print(f"IRR: {irr*100:.2f}%")
+print(f"IRR: {irr * 100:.2f}%")
 ```
 
 ### 6.4 Payback Period
@@ -512,9 +494,7 @@ from site_calc_investment.analysis import aggregate_annual
 
 # Extract annual revenue from hourly schedule
 annual_revenues = aggregate_annual(
-    hourly_values=result.sites["site1"].grid_flows["export"],
-    prices=grid_export_prices,
-    years=10
+    hourly_values=result.sites["site1"].grid_flows["export"], prices=grid_export_prices, years=10
 )
 # Returns: [year1_revenue, year2_revenue, ..., year10_revenue]
 ```
@@ -528,19 +508,24 @@ annual_revenues = aggregate_annual(
 ```python
 {
     "investment_metrics": {
-        "total_revenue_10y": 5000000.0,      # Total revenue over horizon
-        "total_costs_10y": 3000000.0,        # Total costs (fuel, O&M, capacity charges)
-        "npv": None,                         # Calculated client-side
-        "irr": None,                         # Calculated client-side
-        "payback_period_years": None,        # Calculated client-side
-        "annual_revenue_by_year": [          # Year-by-year breakdown
-            450000, 465000, 480000, 495000, 510000,
-            525000, 540000, 555000, 570000, 585000
+        "total_revenue_10y": 5000000.0,  # Total revenue over horizon
+        "total_costs_10y": 3000000.0,  # Total costs (fuel, O&M, capacity charges)
+        "npv": None,  # Calculated client-side
+        "irr": None,  # Calculated client-side
+        "payback_period_years": None,  # Calculated client-side
+        "annual_revenue_by_year": [  # Year-by-year breakdown
+            450000,
+            465000,
+            480000,
+            495000,
+            510000,
+            525000,
+            540000,
+            555000,
+            570000,
+            585000,
         ],
-        "annual_costs_by_year": [
-            250000, 260000, 270000, 280000, 290000,
-            300000, 310000, 320000, 330000, 340000
-        ]
+        "annual_costs_by_year": [250000, 260000, 270000, 280000, 290000, 300000, 310000, 320000, 330000, 340000],
     }
 }
 ```
@@ -558,17 +543,17 @@ client-side from these arrays with `calculate_investment_metrics`
         "flows": {
             "electricity": [2.0, -1.5, 0.5, ...]  # 87,600 hourly values (MW)
         },
-        "soc": [0.5, 0.48, 0.47, ...],            # 87,600 values (0-1)
+        "soc": [0.5, 0.48, 0.47, ...],  # 87,600 values (0-1)
         # No ancillary_reservations field
     },
     "CHP1": {
         "flows": {
-            "gas": [-8.0, -4.0, -6.0, ...],       # 87,600 values (MW)
-            "electricity": [3.0, 1.5, 2.25, ...], # Continuous operation
-            "heat": [4.0, 2.0, 3.0, ...]
+            "gas": [-8.0, -4.0, -6.0, ...],  # 87,600 values (MW)
+            "electricity": [3.0, 1.5, 2.25, ...],  # Continuous operation
+            "heat": [4.0, 2.0, 3.0, ...],
         }
         # No binary_status (treated as continuous)
-    }
+    },
 }
 ```
 
@@ -586,20 +571,20 @@ device) carry a `capacity_reservations` list on their schedule:
             {
                 "kind": "capacity_reservation",  # or power_sizing | capacity_sizing
                 "material": "electricity",
-                "reserved": 4.2,          # contracted or optimizer-sized (MW; MWh for capacity_sizing)
+                "reserved": 4.2,  # contracted or optimizer-sized (MW; MWh for capacity_sizing)
                 "total_payment": 391000.0,  # sum of all period payments (EUR)
                 "periods": [
                     {
                         "start": "2026-01-01T00:00:00+01:00",
                         "end": "2026-02-01T00:00:00+01:00",
-                        "peak": 3.9,        # measured peak in the period (MW)
-                        "tariff": "T1",     # selected tariff (None for unpriced limits)
-                        "payment": 32500.0  # charge billed for this period (EUR)
+                        "peak": 3.9,  # measured peak in the period (MW)
+                        "tariff": "T1",  # selected tariff (None for unpriced limits)
+                        "payment": 32500.0,  # charge billed for this period (EUR)
                     },
-                    ...
-                ]
+                    ...,
+                ],
             }
-        ]
+        ],
     }
 }
 ```
@@ -613,12 +598,7 @@ capacity (MWh) it chose to build.
 ## 8. Error Handling
 
 ```python
-from site_calc_investment.exceptions import (
-    ApiError,
-    ValidationError,
-    ForbiddenFeatureError,
-    LimitExceededError
-)
+from site_calc_investment.exceptions import ApiError, ValidationError, ForbiddenFeatureError, LimitExceededError
 
 try:
     result = client.create_planning_job(request)
@@ -641,30 +621,31 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from site_calc_investment import InvestmentClient
 from site_calc_investment.models import (
-    Resolution, Site, Battery, ElectricityImport, ElectricityExport,
-    InvestmentPlanningRequest, InvestmentParameters, OptimizationConfig
+    Resolution,
+    Site,
+    Battery,
+    ElectricityImport,
+    ElectricityExport,
+    InvestmentPlanningRequest,
+    InvestmentParameters,
+    OptimizationConfig,
 )
 from site_calc_investment.models.requests import TimeSpanInvestment
 from site_calc_investment.analysis import calculate_investment_metrics
 
 # Initialize client
-client = InvestmentClient(
-    base_url="https://api.site-calc.example.com",
-    api_key="inv_9876543210fedcba"
-)
+client = InvestmentClient(base_url="https://api.site-calc.example.com", api_key="inv_9876543210fedcba")
 
 # 10-year horizon
 timespan = TimeSpanInvestment(
-    start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
-    intervals=87600,
-    resolution=Resolution.HOUR_1
+    start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")), intervals=87600, resolution=Resolution.HOUR_1
 )
 
 # Generate prices (2% annual escalation)
-base_prices = [30.0 + 10*abs(h-12)/12 for h in range(24)] * 365  # Daily pattern
+base_prices = [30.0 + 10 * abs(h - 12) / 12 for h in range(24)] * 365  # Daily pattern
 prices_10y = []
 for year in range(10):
-    year_prices = [p * (1.02 ** year) for p in base_prices]
+    year_prices = [p * (1.02**year) for p in base_prices]
     prices_10y.extend(year_prices)
 
 # Test three battery sizes
@@ -676,12 +657,12 @@ for capacity in [5.0, 10.0, 15.0]:
             "capacity": capacity,
             "max_power": capacity / 2,  # 2-hour discharge
             "efficiency": 0.90,
-            "initial_soc": 0.5
+            "initial_soc": 0.5,
         },
         investment={
             "capital_cost": capacity * 100000,  # €100k/MWh
-            "annual_opex": capacity * 1000      # €1k/MWh/year
-        }
+            "annual_opex": capacity * 1000,  # €1k/MWh/year
+        },
     )
 
     site = Site(
@@ -689,23 +670,17 @@ for capacity in [5.0, 10.0, 15.0]:
         devices=[
             battery,
             ElectricityImport(name="GridImport", properties={"price": prices_10y, "max_import": 20.0}),
-            ElectricityExport(name="GridExport", properties={"price": prices_10y, "max_export": 20.0})
-        ]
+            ElectricityExport(name="GridExport", properties={"price": prices_10y, "max_export": 20.0}),
+        ],
     )
 
-    inv_params = InvestmentParameters(
-        discount_rate=0.05,
-        project_lifetime_years=10
-    )
+    inv_params = InvestmentParameters(discount_rate=0.05, project_lifetime_years=10)
 
     request = InvestmentPlanningRequest(
         sites=[site],
         timespan=timespan,
         investment_parameters=inv_params,
-        optimization_config=OptimizationConfig(
-            objective="maximize_profit",
-            time_limit_seconds=900
-        )
+        optimization_config=OptimizationConfig(objective="maximize_profit", time_limit_seconds=900),
     )
 
     job = client.create_planning_job(request)
@@ -722,12 +697,14 @@ for capacity in [5.0, 10.0, 15.0]:
 # Compare scenarios
 print("\n=== Battery Sizing Comparison ===")
 for name, metrics in scenarios:
-    print(f"{name}: NPV €{metrics['npv']:,.0f}, "
-          f"IRR {metrics['irr']*100:.2f}%, "
-          f"payback {metrics['payback_period_years']:.1f}y")
+    print(
+        f"{name}: NPV €{metrics['npv']:,.0f}, "
+        f"IRR {metrics['irr'] * 100:.2f}%, "
+        f"payback {metrics['payback_period_years']:.1f}y"
+    )
 
 # Find optimal size
-best = max(scenarios, key=lambda s: s[1]['npv'])
+best = max(scenarios, key=lambda s: s[1]["npv"])
 print(f"\nOptimal size: {best[0]}")
 ```
 
@@ -888,11 +865,13 @@ Coming from operational client:
 ```python
 # Operational
 from site_calc_operational import OperationalClient
+
 client = OperationalClient(api_key="op_...")
 # 296 intervals, ANS optimization, 15-min resolution
 
 # Investment
 from site_calc_investment import InvestmentClient
+
 client = InvestmentClient(api_key="inv_...")
 # 100,000 intervals, NO ANS, 1-hour only
 ```

@@ -15,22 +15,25 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from site_calc_investment import InvestmentClient
 from site_calc_investment.models import (
-    Resolution, Site, Battery, ElectricityImport, ElectricityExport,
-    InvestmentPlanningRequest, InvestmentParameters, OptimizationConfig
+    Resolution,
+    Site,
+    Battery,
+    ElectricityImport,
+    ElectricityExport,
+    InvestmentPlanningRequest,
+    InvestmentParameters,
+    OptimizationConfig,
 )
 from site_calc_investment.models.requests import TimeSpanInvestment
 
 # Initialize client
-client = InvestmentClient(
-    base_url="https://api.site-calc.example.com",
-    api_key="inv_your_api_key_here"
-)
+client = InvestmentClient(base_url="https://api.site-calc.example.com", api_key="inv_your_api_key_here")
 
 # Create 1-week planning horizon (1-hour resolution)
 timespan = TimeSpanInvestment(
     start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
     intervals=168,  # 1 week = 7 days × 24 hours
-    resolution=Resolution.HOUR_1
+    resolution=Resolution.HOUR_1,
 )
 
 # Generate hourly prices (example: day/night pattern)
@@ -39,31 +42,20 @@ prices = [30.0 if h % 24 < 6 else 80.0 if 8 <= h % 24 < 20 else 50.0 for h in ra
 # Define devices (NO ancillary_services field)
 battery = Battery(
     name="Battery1",
-    properties={
-        "capacity": 10.0,
-        "max_power": 5.0,
-        "efficiency": 0.90,
-        "initial_soc": 0.5
-    },
-    investment={"capital_cost": 500000, "annual_opex": 5000}  # For client-side NPV
+    properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.90, "initial_soc": 0.5},
+    investment={"capital_cost": 500000, "annual_opex": 5000},  # For client-side NPV
 )
 
-grid_import = ElectricityImport(
-    name="GridImport",
-    properties={"price": prices, "max_import": 10.0}
-)
+grid_import = ElectricityImport(name="GridImport", properties={"price": prices, "max_import": 10.0})
 
-grid_export = ElectricityExport(
-    name="GridExport",
-    properties={"price": prices, "max_export": 10.0}
-)
+grid_export = ElectricityExport(name="GridExport", properties={"price": prices, "max_export": 10.0})
 
 site = Site(site_id="investment_site", devices=[battery, grid_import, grid_export])
 
 # Global investment parameters (per-device costs live on the devices)
 inv_params = InvestmentParameters(
     discount_rate=0.05,
-    project_lifetime_years=10  # Required field
+    project_lifetime_years=10,  # Required field
 )
 
 # Create and submit optimization request
@@ -73,8 +65,8 @@ request = InvestmentPlanningRequest(
     investment_parameters=inv_params,
     optimization_config=OptimizationConfig(
         objective="maximize_profit",  # Options: maximize_profit, minimize_cost, maximize_self_consumption
-        time_limit_seconds=300        # Max 900 seconds (15 min)
-    )
+        time_limit_seconds=300,  # Max 900 seconds (15 min)
+    ),
 )
 
 job = client.create_planning_job(request)
@@ -160,7 +152,7 @@ from site_calc_investment.analysis import (
     calculate_npv,
     calculate_irr,
     calculate_payback_period,
-    compare_scenarios
+    compare_scenarios,
 )
 
 # All-in-one: NPV/IRR/payback from annual aggregates + device investment blocks
@@ -173,20 +165,13 @@ metrics = calculate_investment_metrics(
 print(metrics["npv"], metrics["irr"], metrics["payback_period_years"])
 
 # NPV calculation
-npv = calculate_npv(
-    cash_flows=annual_revenues,
-    discount_rate=0.05,
-    initial_investment=-1500000
-)
+npv = calculate_npv(cash_flows=annual_revenues, discount_rate=0.05, initial_investment=-1500000)
 
 # IRR calculation
 irr = calculate_irr([-1500000] + annual_revenues)
 
 # Scenario comparison
-comparison = compare_scenarios(
-    [result_5mw, result_10mw, result_15mw],
-    names=["5 MW", "10 MW", "15 MW"]
-)
+comparison = compare_scenarios([result_5mw, result_10mw, result_15mw], names=["5 MW", "10 MW", "15 MW"])
 print(comparison)  # DataFrame with NPV, IRR, costs, revenues
 ```
 
