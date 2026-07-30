@@ -332,18 +332,26 @@ class TestCalculateInvestmentMetrics:
 
     def test_reservation_charges_not_double_counted(self):
         """annual_costs already contains reservation charges; only opex is added on top."""
+        from site_calc_investment.models import Battery, BatteryProperties, DeviceInvestment
+
         annual_costs_with_charges = [80_000.0] * 5  # includes e.g. 30k of capacity charges
+        battery = Battery(
+            name="BESS",
+            properties=BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.9),
+            investment=DeviceInvestment(annual_opex=10_000.0),
+        )
 
         metrics = calculate_investment_metrics(
             annual_revenues=[200_000.0] * 5,
             annual_costs=annual_costs_with_charges,
             discount_rate=0.05,
-            devices=None,
+            devices=[battery],
         )
 
-        # No devices -> no capex/opex added; net = revenues - costs only
+        # Only the fixed opex is added on top of the charge-inclusive costs:
+        # 200000 - 80000 - 10000; the charges inside annual_costs are counted once.
         assert metrics["initial_investment"] == 0.0
-        assert metrics["annual_net_cash_flows"] == [120_000.0] * 5
+        assert metrics["annual_net_cash_flows"] == [110_000.0] * 5
 
     def test_devices_without_investment_blocks_ignored(self):
         from site_calc_investment.models import Battery, BatteryProperties

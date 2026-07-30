@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from site_calc_investment import (
     Battery,
+    DeviceInvestment,
     ElectricityExport,
     ElectricityImport,
     InvestmentClient,
@@ -51,6 +52,7 @@ def create_scenario(
     print(f"{'=' * 60}")
 
     # Battery sized for 2-hour duration
+    # CAPEX: EUR 100/kWh; O&M: EUR 1/kWh/year
     battery = Battery(
         name="Battery1",
         properties={
@@ -59,6 +61,10 @@ def create_scenario(
             "efficiency": 0.90,
             "initial_soc": 0.5,
         },
+        investment=DeviceInvestment(
+            capital_cost=capacity_mwh * 1000 * 100,
+            annual_opex=capacity_mwh * 1000 * 1,
+        ),
     )
 
     grid_import = ElectricityImport(
@@ -76,17 +82,9 @@ def create_scenario(
         devices=[battery, grid_import, grid_export],
     )
 
-    # Capital cost: EUR 100/kWh
-    capex = capacity_mwh * 1000 * 100  # EUR 100/kWh
-
-    # O&M: EUR 1/kWh/year
-    opex = capacity_mwh * 1000 * 1  # EUR 1/kWh/year
-
     inv_params = InvestmentParameters(
         discount_rate=0.05,
         project_lifetime_years=10,  # Required field
-        device_capital_costs={"Battery1": capex},
-        device_annual_opex={"Battery1": opex},
     )
 
     request = InvestmentPlanningRequest(
@@ -101,8 +99,8 @@ def create_scenario(
 
     print(f"  Capacity:   {capacity_mwh:.0f} MWh")
     print(f"  Power:      {capacity_mwh / 2:.0f} MW")
-    print(f"  CAPEX:      EUR {capex:,.0f}")
-    print(f"  Annual O&M: EUR {opex:,.0f}")
+    print(f"  CAPEX:      EUR {battery.investment.capital_cost:,.0f}")
+    print(f"  Annual O&M: EUR {battery.investment.annual_opex:,.0f}")
 
     job = client.create_planning_job(request)
     print(f"\n  Job ID: {job.job_id}")

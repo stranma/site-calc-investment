@@ -44,7 +44,8 @@ battery = Battery(
         "max_power": 5.0,
         "efficiency": 0.90,
         "initial_soc": 0.5
-    }
+    },
+    investment={"capital_cost": 500000, "annual_opex": 5000}  # For client-side NPV
 )
 
 grid_import = ElectricityImport(
@@ -59,12 +60,10 @@ grid_export = ElectricityExport(
 
 site = Site(site_id="investment_site", devices=[battery, grid_import, grid_export])
 
-# Investment parameters
+# Global investment parameters (per-device costs live on the devices)
 inv_params = InvestmentParameters(
     discount_rate=0.05,
-    project_lifetime_years=10,                  # Required field
-    device_capital_costs={"Battery1": 500000},  # €500k CAPEX
-    device_annual_opex={"Battery1": 5000}       # €5k/year O&M
+    project_lifetime_years=10  # Required field
 )
 
 # Create and submit optimization request

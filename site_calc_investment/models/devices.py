@@ -253,8 +253,18 @@ class CzDistributionImportProperties(BaseModel):
         return CapacityReservation(
             periods="calendar_month",
             tariffs=[
-                CapacityTariff(name="T1", reserved_price=self.t1_reserved_price, peak_price=self.t1_peak_price),
-                CapacityTariff(name="T2", reserved_price=self.t2_reserved_price, peak_price=self.t2_peak_price),
+                CapacityTariff(
+                    name="T1",
+                    reserved_price=self.t1_reserved_price,
+                    peak_price=self.t1_peak_price,
+                    fixed_price=0.0,
+                ),
+                CapacityTariff(
+                    name="T2",
+                    reserved_price=self.t2_reserved_price,
+                    peak_price=self.t2_peak_price,
+                    fixed_price=0.0,
+                ),
             ],
             reserved=self.reserved_capacity,
             min_reserved=self.min_reserved,

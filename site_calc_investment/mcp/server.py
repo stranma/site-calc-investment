@@ -322,9 +322,14 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
 
 
 def _build_reservation_summaries(response: Any) -> dict[str, Any]:
-    """Compact per-device capacity reservation summaries (sized capacity, payments)."""
+    """Compact per-device capacity reservation summaries (sized capacity, payments).
+
+    Keys are device names; with multiple sites the key is prefixed with
+    the site id, since device names are only unique within one site.
+    """
     summaries: dict[str, Any] = {}
-    for _site_id, site_result in response.sites.items():
+    multi_site = len(response.sites) > 1
+    for site_id, site_result in response.sites.items():
         for dev_name, schedule in site_result.device_schedules.items():
             if not schedule.capacity_reservations:
                 continue
@@ -343,7 +348,8 @@ def _build_reservation_summaries(response: Any) -> dict[str, Any]:
                         "tariffs_used": tariff_counts,
                     }
                 )
-            summaries[dev_name] = entries
+            key = f"{site_id}/{dev_name}" if multi_site else dev_name
+            summaries[key] = entries
     return summaries
 
 

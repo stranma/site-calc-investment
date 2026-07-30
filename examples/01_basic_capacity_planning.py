@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from site_calc_investment import (
     Battery,
+    DeviceInvestment,
     ElectricityExport,
     ElectricityImport,
     InvestmentClient,
@@ -65,6 +66,10 @@ def main():
             "efficiency": 0.90,  # 90% round-trip
             "initial_soc": 0.5,  # Start at 50%
         },
+        investment=DeviceInvestment(
+            capital_cost=2_000_000,  # EUR 2M CAPEX (EUR 100/kWh)
+            annual_opex=20_000,  # EUR 20k/year O&M
+        ),
     )
 
     # Market devices (grid connections)
@@ -85,16 +90,10 @@ def main():
         devices=[battery, grid_import, grid_export],
     )
 
-    # Investment parameters
+    # Global investment parameters (per-device costs live on the devices)
     inv_params = InvestmentParameters(
         discount_rate=0.05,  # 5% discount rate
         project_lifetime_years=10,  # Required field
-        device_capital_costs={
-            "Battery1": 2_000_000  # EUR 2M CAPEX (EUR 100/kWh)
-        },
-        device_annual_opex={
-            "Battery1": 20_000  # EUR 20k/year O&M
-        },
     )
 
     # Create optimization request
