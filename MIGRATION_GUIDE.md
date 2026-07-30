@@ -1,14 +1,111 @@
-# Migration Guide: Moving to New Repository
+# Migration Guide
+
+## Migrating from 1.2.x to 1.3.0
+
+Version 1.3.0 moves per-device investment costs onto the devices themselves,
+introduces capacity reservations (per-billing-period capacity limits and
+charges with automatic cheapest-tariff assignment), and removes
+`InvestmentParameters` fields that the optimization service never applied.
+
+### Field mapping
+
+| 1.2.x | 1.3.0 |
+|-------|-------|
+| `InvestmentParameters(device_capital_costs={"X": c})` | Device `X`'s `investment={"capital_cost": c}` |
+| `InvestmentParameters(device_annual_opex={"X": o})` | Device `X`'s `investment={"annual_opex": o}` |
+| `max_import_unit_cost` on import properties | `capacity_reservation={"periods": "horizon", "tariffs": [{"name": "unit", "reserved_price": <old unit cost>, "peak_price": 0}]}` on `electricity_import` |
+| `max_export_unit_cost` on export properties | Same as above, on `electricity_export` |
+| `InvestmentParameters(investment_budget=...)` | Removed -- was never applied |
+| `InvestmentParameters(carbon_price=...)` | Removed -- was never applied |
+| `InvestmentParameters(price_escalation_rate=...)` | Removed -- was never applied; bake escalation into the price arrays instead |
+
+Notes on the mapping:
+
+- `max_import_unit_cost` / `max_export_unit_cost` were **never applied by the
+  optimization service**, so removing them does not change optimization
+  results. If you want the intended behavior (a priced ceiling on the peak
+  grid flow), the `capacity_reservation` above now actually delivers it: with
+  `periods="horizon"` and a single tariff whose `reserved_price` is the old
+  unit cost, the optimizer sizes the reserved capacity and pays for it once
+  over the horizon.
+- `gas_import` and `heat_export` now have dedicated property classes with
+  `price` and `max_import`/`max_export` only (no capacity reservations).
+
+### Before / after
+
+```python
+# 1.2.x
+inv_params = InvestmentParameters(
+    discount_rate=0.05,
+    project_lifetime_years=10,
+    device_capital_costs={"Battery1": 500000},
+    device_annual_opex={"Battery1": 5000},
+)
+battery = Battery(name="Battery1", properties={...})
+
+# 1.3.0
+inv_params = InvestmentParameters(
+    discount_rate=0.05,
+    project_lifetime_years=10,
+)
+battery = Battery(
+    name="Battery1",
+    properties={...},
+    investment={"capital_cost": 500000, "annual_opex": 5000},
+)
+```
+
+MCP users: `set_investment_params` now accepts only `scenario_id`,
+`discount_rate`, and `project_lifetime_years`; pass the per-device costs as
+the `investment` parameter of `add_device` instead.
+
+### Stricter validation
+
+Unknown fields now raise validation errors (`extra="forbid"`) on:
+
+- `InvestmentParameters`
+- `BatteryProperties`
+- Market property classes (`electricity_import`/`electricity_export`,
+  `gas_import`, `heat_export`, `cz_distribution_import`)
+- `CapacityReservation` / `CapacityTariff` / `DeviceInvestment`
+
+Previously misspelled or unsupported fields were silently ignored; the same
+input now fails loudly. Fix the field name or remove the field.
+
+### NPV workflow
+
+Compute financial metrics with the new `calculate_investment_metrics` helper:
+
+```python
+from site_calc_investment.analysis import calculate_investment_metrics
+
+metrics = calculate_investment_metrics(
+    annual_revenues=result.investment_metrics.annual_revenue_by_year,
+    annual_costs=result.investment_metrics.annual_costs_by_year,
+    discount_rate=0.05,
+    devices=site.devices,  # sums the devices' investment blocks
+)
+# metrics["npv"], metrics["irr"], metrics["payback_period_years"], ...
+```
+
+`annual_costs_by_year` now **includes capacity-reservation charges** (e.g.
+battery `power_sizing` payments or grid capacity-tariff payments). Do not
+also model a cost carried by a sizing reservation as `capital_cost` on the
+device, or it will be counted twice.
+
+---
+
+## Moving to a New Repository
 
 This guide explains how to copy the `client-investment` package to a new standalone Git repository.
 
-## Prerequisites
+### Prerequisites
 
 - Git installed on your system
 - GitHub account (or GitLab/Bitbucket)
 - Access to create new repositories
 
-## Step 1: Create New Repository on GitHub
+### Step 1: Create New Repository on GitHub
 
 1. Go to https://github.com/new (or your Git hosting service)
 2. Repository settings:
@@ -19,11 +116,11 @@ This guide explains how to copy the `client-investment` package to a new standal
 
 3. Click "Create repository"
 
-## Step 2: Prepare the Client-Investment Folder
+### Step 2: Prepare the Client-Investment Folder
 
 The folder is already prepared with all necessary files:
 
-### ✅ Included Files
+#### ✅ Included Files
 - `LICENSE` - MIT license
 - `README.md` - Complete documentation
 - `CHANGELOG.md` - Version history
@@ -32,7 +129,7 @@ The folder is already prepared with all necessary files:
 - `.gitignore` - Git ignore rules
 - `.github/workflows/ci.yml` - GitHub Actions CI
 
-### ✅ Package Structure
+#### ✅ Package Structure
 ```
 client-investment/
 ├── site_calc_investment/       # Main package (ready)
@@ -47,7 +144,7 @@ client-investment/
 └── .github/                    # CI workflows (ready)
 ```
 
-## Step 3: Initialize Git Repository
+### Step 3: Initialize Git Repository
 
 From the `client-investment` directory:
 
@@ -72,7 +169,7 @@ git commit -m "Initial commit: Site-Calc Investment Client v1.0.0
 - Full documentation and examples"
 ```
 
-## Step 4: Push to New Repository
+### Step 4: Push to New Repository
 
 ```bash
 # Add remote (replace URL with your actual repository URL)
@@ -85,18 +182,18 @@ git branch -M main
 git push -u origin main
 ```
 
-## Step 5: Configure Repository Settings
+### Step 5: Configure Repository Settings
 
 On GitHub, configure:
 
-### Branch Protection
+#### Branch Protection
 - Go to Settings → Branches → Add rule for `main`
 - ✅ Require pull request reviews before merging
 - ✅ Require status checks to pass before merging
   - Select: `test`, `build`
 - ✅ Require branches to be up to date before merging
 
-### Topics/Tags
+#### Topics/Tags
 Add topics for discoverability:
 - `python`
 - `energy`
@@ -105,17 +202,17 @@ Add topics for discoverability:
 - `capacity-planning`
 - `roi-analysis`
 
-### About Section
+#### About Section
 - **Description**: "Python client for Site-Calc investment planning API - long-term capacity planning and ROI analysis"
 - **Website**: (Your documentation site if available)
 - **Topics**: (As above)
 
-### Enable Features
+#### Enable Features
 - ✅ Issues
 - ✅ Wiki (optional)
 - ✅ Discussions (optional - good for community support)
 
-## Step 6: Set Up PyPI Publishing (Optional)
+### Step 6: Set Up PyPI Publishing (Optional)
 
 To publish to PyPI:
 
@@ -158,11 +255,11 @@ To publish to PyPI:
    - Description: Copy from CHANGELOG.md
    - Publish release → Package auto-publishes to PyPI
 
-## Step 7: Update URLs (After Publishing)
+### Step 7: Update URLs (After Publishing)
 
 Once repository is live, update these files to replace example URLs:
 
-### In `pyproject.toml`:
+#### In `pyproject.toml`:
 ```toml
 [project.urls]
 Homepage = "https://github.com/YOUR-USERNAME/site-calc-investment"
@@ -171,15 +268,15 @@ Repository = "https://github.com/YOUR-USERNAME/site-calc-investment"
 Issues = "https://github.com/YOUR-USERNAME/site-calc-investment/issues"
 ```
 
-### In `README.md`:
+#### In `README.md`:
 - Update documentation links
 - Update repository links
 - Update API base URL (if different from example)
 
-### In `CONTRIBUTING.md`:
+#### In `CONTRIBUTING.md`:
 - Update clone URL
 
-## Step 8: Add Badges to README (Optional)
+### Step 8: Add Badges to README (Optional)
 
 Add status badges at the top of README.md:
 
@@ -193,7 +290,7 @@ Add status badges at the top of README.md:
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 ```
 
-## Verification Checklist
+### Verification Checklist
 
 After migration, verify:
 
@@ -208,25 +305,25 @@ After migration, verify:
 - [ ] (Optional) Package published to PyPI
 - [ ] (Optional) Documentation site deployed
 
-## Maintaining Two Repositories
+### Maintaining Two Repositories
 
 If keeping code in both the original `site-calc` repo and the new standalone repo:
 
-### Option 1: Manual Sync
+#### Option 1: Manual Sync
 - Make changes in `client-investment` folder in original repo
 - Periodically copy to standalone repo
 - Use git to commit and push
 
-### Option 2: Git Subtree
+#### Option 2: Git Subtree
 - Use `git subtree` to sync between repositories
 - More complex but keeps history
 
-### Option 3: Monorepo + Separate Publish
+#### Option 3: Monorepo + Separate Publish
 - Keep development in original repo
 - CI copies to separate repo on release
 - Automated with GitHub Actions
 
-## Support
+### Support
 
 If you encounter issues during migration:
 1. Check GitHub's documentation: https://docs.github.com
