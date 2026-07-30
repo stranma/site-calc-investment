@@ -1,6 +1,6 @@
 """Financial analysis functions."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 
 def calculate_npv(
@@ -145,6 +145,66 @@ def calculate_payback_period(cash_flows: List[float]) -> Optional[float]:
             return (year - 1) + fraction
 
     return None  # Never pays back
+
+
+def calculate_investment_metrics(
+    annual_revenues: List[float],
+    annual_costs: List[float],
+    discount_rate: float,
+    devices: Optional[Sequence[Any]] = None,
+) -> Dict[str, Any]:
+    """Assemble NPV/IRR/payback from annual aggregates and device investment blocks.
+
+    The server's ``annual_costs_by_year`` already includes capacity-reservation
+    charges (e.g. battery power sizing or grid tariff payments), so only the
+    fixed ``capital_cost``/``annual_opex`` values from device ``investment``
+    blocks are added here. Do not also model a cost carried by a sizing
+    reservation as ``capital_cost``, or it will be counted twice.
+
+    Args:
+        annual_revenues: Annual revenues from the optimization result (EUR)
+        annual_costs: Annual costs from the optimization result (EUR),
+                      including capacity-reservation charges
+        discount_rate: Discount rate (e.g., 0.05 for 5%)
+        devices: Device models whose optional ``investment`` blocks carry
+                 fixed capital_cost / annual_opex
+
+    Returns:
+        Dict with npv, irr, payback_period_years, initial_investment,
+        and annual_net_cash_flows
+
+    Example:
+        >>> metrics = calculate_investment_metrics(
+        ...     annual_revenues=[250000] * 10,
+        ...     annual_costs=[80000] * 10,
+        ...     discount_rate=0.05,
+        ...     devices=site.devices,
+        ... )
+        >>> print(f"NPV: €{metrics['npv']:,.0f}")
+    """
+    if len(annual_revenues) != len(annual_costs):
+        raise ValueError(
+            f"annual_revenues length {len(annual_revenues)} does not match annual_costs length {len(annual_costs)}"
+        )
+
+    capex = 0.0
+    opex = 0.0
+    for device in devices or []:
+        investment = getattr(device, "investment", None)
+        if investment is not None:
+            capex += investment.capital_cost or 0.0
+            opex += investment.annual_opex or 0.0
+
+    net_flows = [r - c - opex for r, c in zip(annual_revenues, annual_costs)]
+    flows_with_capex = [-capex, *net_flows]
+
+    return {
+        "npv": calculate_npv(net_flows, discount_rate, initial_investment=-capex),
+        "irr": calculate_irr(flows_with_capex),
+        "payback_period_years": calculate_payback_period(flows_with_capex),
+        "initial_investment": capex,
+        "annual_net_cash_flows": net_flows,
+    }
 
 
 def aggregate_annual(

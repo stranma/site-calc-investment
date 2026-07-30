@@ -234,13 +234,9 @@ class TestScenarioInvestmentParams:
             scenario_id,
             discount_rate=0.05,
             project_lifetime_years=20,
-            device_capital_costs={"B1": 500000},
-            device_annual_opex={"B1": 10000},
         )
         assert "5.0%" in result
         assert "20y" in result
-        assert "500,000" in result
-        assert "10,000" in result
 
 
 class TestScenarioReview:
@@ -296,10 +292,14 @@ class TestScenarioReview:
             device_type="battery",
             name="B1",
             properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+            investment={"capital_cost": 500000, "annual_opex": 10000},
         )
-        store.set_investment_params(scenario_id, discount_rate=0.05, device_capital_costs={"B1": 500000})
+        store.set_investment_params(scenario_id, discount_rate=0.05)
         review = store.review(scenario_id)
         assert "5.0%" in review["investment_params"]
+        assert "500,000" in review["investment_params"]
+        assert "10,000" in review["investment_params"]
+        assert "CAPEX 500,000" in review["devices"][0]["investment"]
 
 
 class TestScenarioBuildRequest:
@@ -356,17 +356,17 @@ class TestScenarioBuildRequest:
             device_type="battery",
             name="B1",
             properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+            investment={"capital_cost": 500000},
         )
         store.set_investment_params(
             scenario_id,
             discount_rate=0.05,
             project_lifetime_years=10,
-            device_capital_costs={"B1": 500000},
         )
         request = store.build_request(scenario_id)
         assert request.investment_parameters is not None
         assert request.investment_parameters.discount_rate == 0.05
-        assert request.investment_parameters.device_capital_costs == {"B1": 500000}
+        assert request.sites[0].devices[0].investment.capital_cost == 500000
 
     def test_build_request_expands_scalar_price(self, store: ScenarioStore, scenario_id: str) -> None:
         store.add_device(
@@ -451,7 +451,7 @@ class TestScenarioBuildRequest:
             name="Grid",
             properties={"price": [50.0] * 864, "max_import": 10.0},
         )
-        store.set_investment_params(sid, discount_rate=0.08, device_capital_costs={"Grid": 100000})
+        store.set_investment_params(sid, discount_rate=0.08)
         request = store.build_request(sid)
         assert request.investment_parameters is not None
         assert request.investment_parameters.project_lifetime_years == 1
@@ -465,7 +465,7 @@ class TestScenarioBuildRequest:
             name="Grid",
             properties={"price": [50.0] * 17520, "max_import": 10.0},
         )
-        store.set_investment_params(sid, discount_rate=0.08, device_capital_costs={"Grid": 100000})
+        store.set_investment_params(sid, discount_rate=0.08)
         request = store.build_request(sid)
         assert request.investment_parameters is not None
         assert request.investment_parameters.project_lifetime_years == 2

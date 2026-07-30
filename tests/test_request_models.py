@@ -48,31 +48,42 @@ class TestInvestmentParameters:
         params = InvestmentParameters(
             discount_rate=0.05,
             project_lifetime_years=10,
-            device_capital_costs={"Battery1": 500000},
-            device_annual_opex={"Battery1": 5000},
         )
 
         assert params.discount_rate == 0.05
         assert params.project_lifetime_years == 10
-        assert params.device_capital_costs["Battery1"] == 500000
-        assert params.device_annual_opex["Battery1"] == 5000
 
-    def test_investment_params_price_escalation(self):
-        """Test price escalation rate."""
-        params = InvestmentParameters(
-            discount_rate=0.05,
-            project_lifetime_years=10,
-            price_escalation_rate=0.02,  # 2% annual
-        )
+    def test_investment_params_removed_fields_rejected(self):
+        """Removed per-device dicts must fail loudly (moved onto devices)."""
+        with pytest.raises(ValueError):
+            InvestmentParameters(
+                discount_rate=0.05,
+                project_lifetime_years=10,
+                device_capital_costs={"Battery1": 500000},
+            )
+        with pytest.raises(ValueError):
+            InvestmentParameters(
+                discount_rate=0.05,
+                project_lifetime_years=10,
+                device_annual_opex={"Battery1": 5000},
+            )
+        with pytest.raises(ValueError):
+            InvestmentParameters(
+                discount_rate=0.05,
+                project_lifetime_years=10,
+                price_escalation_rate=0.02,
+            )
+        with pytest.raises(ValueError):
+            InvestmentParameters(
+                discount_rate=0.05,
+                project_lifetime_years=10,
+                investment_budget=1_000_000,
+            )
 
-        assert params.price_escalation_rate == 0.02
-
-    def test_investment_params_optional_fields(self):
-        """Test that CAPEX and OPEX are optional."""
-        params = InvestmentParameters(discount_rate=0.05, project_lifetime_years=10)
-
-        assert params.device_capital_costs is None
-        assert params.device_annual_opex is None
+    def test_investment_params_lifetime_required(self):
+        """project_lifetime_years is required."""
+        with pytest.raises(ValueError):
+            InvestmentParameters(discount_rate=0.05)
 
 
 class TestOptimizationConfig:
@@ -232,3 +243,108 @@ class TestInvestmentPlanningRequest:
         # Check sites included
         assert "sites" in api_dict
         assert len(api_dict["sites"]) == 1
+
+        # Client-only investment blocks are stripped from every device
+        for device in api_dict["sites"][0]["devices"]:
+            assert "investment" not in device
+
+
+class TestWireFormat:
+    """Wire-shape tests: the payload must match the server's request schema exactly."""
+
+    def _make_request(self, devices, prague_tz):
+        start = datetime(2025, 1, 1, 0, 0, 0, tzinfo=prague_tz)
+        timespan = TimeSpanInvestment(start=start, intervals=8760, resolution=Resolution.HOUR_1)
+        site = Site(site_id="wire_site", devices=devices)
+        return InvestmentPlanningRequest(sites=[site], timespan=timespan)
+
+    def test_battery_power_sizing_survives_as_nested_dict(self, prague_tz):
+        """Battery power_sizing dumps to the exact reservation wire shape."""
+        from site_calc_investment.models import Battery, BatteryProperties, CapacityReservation, CapacityTariff
+
+        battery = Battery(
+            name="BESS",
+            properties=BatteryProperties(
+                capacity=8.0,
+                max_power=10.0,
+                efficiency=0.92,
+                power_sizing=CapacityReservation(
+                    periods="horizon",
+                    tariffs=[CapacityTariff(name="capex", reserved_price=95_000.0, peak_price=0.0)],
+                ),
+            ),
+        )
+        api_dict = self._make_request([battery], prague_tz).model_dump_for_api()
+
+        wire = api_dict["sites"][0]["devices"][0]
+        assert wire["type"] == "battery"
+        sizing = wire["properties"]["power_sizing"]
+        assert sizing == {
+            "periods": "horizon",
+            "tariffs": [{"name": "capex", "reserved_price": 95_000.0, "peak_price": 0.0, "fixed_price": 0.0}],
+            "reserved": None,
+            "min_reserved": 0.0,
+            "max_reserved": None,
+            "timezone": None,
+        }
+
+    def test_cz_distribution_import_converts_to_electricity_import(self, prague_tz):
+        """The CZ sugar device serializes as electricity_import + monthly reservation."""
+        from site_calc_investment.models import CzDistributionImport
+        from site_calc_investment.models.devices import CzDistributionImportProperties
+
+        cz = CzDistributionImport(
+            name="DSO",
+            properties=CzDistributionImportProperties(
+                price=[85.0] * 8760,
+                max_import=10.0,
+                t1_reserved_price=86_000.0,
+                t1_peak_price=30_000.0,
+                t2_reserved_price=65_000.0,
+                t2_peak_price=95_000.0,
+                reserved_capacity=5.0,
+            ),
+        )
+        api_dict = self._make_request([cz], prague_tz).model_dump_for_api()
+
+        wire = api_dict["sites"][0]["devices"][0]
+        assert wire["name"] == "DSO"
+        assert wire["type"] == "electricity_import"
+        assert wire["properties"]["max_import"] == 10.0
+        assert wire["properties"]["price"] == [85.0] * 8760
+        reservation = wire["properties"]["capacity_reservation"]
+        assert reservation == {
+            "periods": "calendar_month",
+            "tariffs": [
+                {"name": "T1", "reserved_price": 86_000.0, "peak_price": 30_000.0, "fixed_price": 0.0},
+                {"name": "T2", "reserved_price": 65_000.0, "peak_price": 95_000.0, "fixed_price": 0.0},
+            ],
+            "reserved": 5.0,
+            "min_reserved": 0.0,
+            "max_reserved": None,
+            "timezone": "Europe/Prague",
+        }
+
+    def test_in_memory_model_keeps_cz_identity(self, prague_tz):
+        """The sugar conversion happens only at the wire boundary."""
+        from site_calc_investment.models import CzDistributionImport
+        from site_calc_investment.models.devices import CzDistributionImportProperties
+
+        cz = CzDistributionImport(
+            name="DSO",
+            properties=CzDistributionImportProperties(
+                price=[85.0] * 8760,
+                max_import=10.0,
+                t1_reserved_price=86_000.0,
+                t1_peak_price=30_000.0,
+                t2_reserved_price=65_000.0,
+                t2_peak_price=95_000.0,
+                reserved_capacity=5.0,
+            ),
+        )
+        request = self._make_request([cz], prague_tz)
+        request.model_dump_for_api()
+
+        # The request object itself is untouched
+        assert request.sites[0].devices[0].type == "cz_distribution_import"
+        assert request.model_dump()["sites"][0]["devices"][0]["type"] == "cz_distribution_import"

@@ -4,12 +4,15 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, cast
 
+from site_calc_investment.models.capacity import DeviceInvestment
 from site_calc_investment.models.common import Resolution
 from site_calc_investment.models.devices import (
     CHP,
     Battery,
     BatteryProperties,
     CHPProperties,
+    CzDistributionImport,
+    CzDistributionImportProperties,
     DemandProperties,
     ElectricityDemand,
     ElectricityExport,
@@ -18,10 +21,12 @@ from site_calc_investment.models.devices import (
     FixedProduction,
     FixedProfileProperties,
     GasImport,
+    GasImportProperties,
     HeatAccumulator,
     HeatAccumulatorProperties,
     HeatDemand,
     HeatExport,
+    HeatExportProperties,
     MarketExportProperties,
     MarketImportProperties,
     MaxPowerConsumption,
@@ -57,8 +62,6 @@ class InvestmentParamsConfig:
 
     discount_rate: float = 0.05
     project_lifetime_years: Optional[int] = None
-    device_capital_costs: Optional[dict[str, float]] = None
-    device_annual_opex: Optional[dict[str, float]] = None
 
 
 @dataclass
@@ -69,6 +72,7 @@ class DeviceConfig:
     name: str
     properties: dict[str, Any]
     schedule: Optional[dict[str, Any]] = None
+    investment: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -111,6 +115,7 @@ DEVICE_TYPE_MAP: dict[str, str] = {
     "electricity_export": "electricity_export",
     "gas_import": "gas_import",
     "heat_export": "heat_export",
+    "cz_distribution_import": "cz_distribution_import",
 }
 
 VALID_DEVICE_TYPES: set[str] = set(DEVICE_TYPE_MAP.keys())
@@ -136,15 +141,20 @@ def _build_device(config: DeviceConfig, expected_length: Optional[int]) -> Any:
     dtype = config.device_type.lower()
     props = dict(config.properties)
     schedule = _build_schedule(config.schedule)
+    investment = DeviceInvestment(**config.investment) if config.investment else None
 
     if dtype == "battery":
-        return Battery(name=config.name, properties=BatteryProperties(**props), schedule=schedule)
+        return Battery(
+            name=config.name, properties=BatteryProperties(**props), schedule=schedule, investment=investment
+        )
 
     elif dtype == "chp":
-        return CHP(name=config.name, properties=CHPProperties(**props), schedule=schedule)
+        return CHP(name=config.name, properties=CHPProperties(**props), schedule=schedule, investment=investment)
 
     elif dtype == "heat_accumulator":
-        return HeatAccumulator(name=config.name, properties=HeatAccumulatorProperties(**props), schedule=schedule)
+        return HeatAccumulator(
+            name=config.name, properties=HeatAccumulatorProperties(**props), schedule=schedule, investment=investment
+        )
 
     elif dtype in ("photovoltaic_nonsteerable", "fixed_production", "fixed_consumption"):
         props["power_profile"] = resolve_price_or_profile(props["power_profile"], expected_length)
@@ -153,49 +163,61 @@ def _build_device(config: DeviceConfig, expected_length: Optional[int]) -> Any:
             "fixed_production": FixedProduction,
             "fixed_consumption": FixedConsumption,
         }[dtype]
-        return model(name=config.name, properties=FixedProfileProperties(**props))
+        return model(name=config.name, properties=FixedProfileProperties(**props), investment=investment)
 
     elif dtype == "photovoltaic_steerable":
         props["max_power_profile"] = resolve_price_or_profile(props["max_power_profile"], expected_length)
-        return PhotovoltaicSteerable(name=config.name, properties=PhotovoltaicSteerableProperties(**props))
+        return PhotovoltaicSteerable(
+            name=config.name, properties=PhotovoltaicSteerableProperties(**props), investment=investment
+        )
 
     elif dtype == "max_power_production":
         props["max_power_profile"] = resolve_price_or_profile(props["max_power_profile"], expected_length)
-        return MaxPowerProduction(name=config.name, properties=MaxPowerProductionProperties(**props))
+        return MaxPowerProduction(
+            name=config.name, properties=MaxPowerProductionProperties(**props), investment=investment
+        )
 
     elif dtype == "max_power_consumption":
         props["max_power_profile"] = resolve_price_or_profile(props["max_power_profile"], expected_length)
-        return MaxPowerConsumption(name=config.name, properties=MaxPowerConsumptionProperties(**props))
+        return MaxPowerConsumption(
+            name=config.name, properties=MaxPowerConsumptionProperties(**props), investment=investment
+        )
 
     elif dtype == "heat_demand":
         props["max_demand_profile"] = resolve_price_or_profile(props["max_demand_profile"], expected_length)
         if "min_demand_profile" in props and props["min_demand_profile"] is not None:
             if not isinstance(props["min_demand_profile"], (int, float)):
                 props["min_demand_profile"] = resolve_price_or_profile(props["min_demand_profile"], expected_length)
-        return HeatDemand(name=config.name, properties=DemandProperties(**props))
+        return HeatDemand(name=config.name, properties=DemandProperties(**props), investment=investment)
 
     elif dtype == "electricity_demand":
         props["max_demand_profile"] = resolve_price_or_profile(props["max_demand_profile"], expected_length)
         if "min_demand_profile" in props and props["min_demand_profile"] is not None:
             if not isinstance(props["min_demand_profile"], (int, float)):
                 props["min_demand_profile"] = resolve_price_or_profile(props["min_demand_profile"], expected_length)
-        return ElectricityDemand(name=config.name, properties=DemandProperties(**props))
+        return ElectricityDemand(name=config.name, properties=DemandProperties(**props), investment=investment)
 
     elif dtype == "electricity_import":
         props["price"] = resolve_price_or_profile(props["price"], expected_length)
-        return ElectricityImport(name=config.name, properties=MarketImportProperties(**props))
+        return ElectricityImport(name=config.name, properties=MarketImportProperties(**props), investment=investment)
 
     elif dtype == "electricity_export":
         props["price"] = resolve_price_or_profile(props["price"], expected_length)
-        return ElectricityExport(name=config.name, properties=MarketExportProperties(**props))
+        return ElectricityExport(name=config.name, properties=MarketExportProperties(**props), investment=investment)
 
     elif dtype == "gas_import":
         props["price"] = resolve_price_or_profile(props["price"], expected_length)
-        return GasImport(name=config.name, properties=MarketImportProperties(**props))
+        return GasImport(name=config.name, properties=GasImportProperties(**props), investment=investment)
 
     elif dtype == "heat_export":
         props["price"] = resolve_price_or_profile(props["price"], expected_length)
-        return HeatExport(name=config.name, properties=MarketExportProperties(**props))
+        return HeatExport(name=config.name, properties=HeatExportProperties(**props), investment=investment)
+
+    elif dtype == "cz_distribution_import":
+        props["price"] = resolve_price_or_profile(props["price"], expected_length)
+        return CzDistributionImport(
+            name=config.name, properties=CzDistributionImportProperties(**props), investment=investment
+        )
 
     else:
         raise ValueError(f"Unknown device type: {dtype}")
@@ -234,6 +256,7 @@ class ScenarioStore:
         name: str,
         properties: dict[str, Any],
         schedule: Optional[dict[str, Any]] = None,
+        investment: Optional[dict[str, Any]] = None,
     ) -> str:
         """Add a device to a draft scenario.
 
@@ -242,6 +265,8 @@ class ScenarioStore:
         :param name: Unique device name within the scenario.
         :param properties: Device-specific properties dict.
         :param schedule: Optional schedule constraints dict.
+        :param investment: Optional fixed costs for client-side NPV, e.g.
+                           ``{"capital_cost": 500000, "annual_opex": 10000}``.
         :returns: Summary string of the added device.
         :raises KeyError: If scenario not found.
         :raises ValueError: If device_type is invalid or name is duplicate.
@@ -261,7 +286,9 @@ class ScenarioStore:
                 "Device names must be unique within a scenario."
             )
 
-        config = DeviceConfig(device_type=dtype, name=name, properties=properties, schedule=schedule)
+        config = DeviceConfig(
+            device_type=dtype, name=name, properties=properties, schedule=schedule, investment=investment
+        )
         scenario.devices.append(config)
 
         return _device_summary(config)
@@ -309,10 +336,11 @@ class ScenarioStore:
         scenario_id: str,
         discount_rate: float = 0.05,
         project_lifetime_years: Optional[int] = None,
-        device_capital_costs: Optional[dict[str, float]] = None,
-        device_annual_opex: Optional[dict[str, float]] = None,
     ) -> str:
-        """Set financial parameters for ROI calculation.
+        """Set global financial parameters for ROI calculation.
+
+        Per-device CAPEX/OPEX belongs on each device's ``investment``
+        block (see add_device).
 
         :returns: Confirmation string.
         """
@@ -320,18 +348,10 @@ class ScenarioStore:
         scenario.investment_params = InvestmentParamsConfig(
             discount_rate=discount_rate,
             project_lifetime_years=project_lifetime_years,
-            device_capital_costs=device_capital_costs,
-            device_annual_opex=device_annual_opex,
         )
         parts = [f"discount_rate={discount_rate:.1%}"]
         if project_lifetime_years is not None:
             parts.append(f"lifetime={project_lifetime_years}y")
-        if device_capital_costs:
-            total = sum(device_capital_costs.values())
-            parts.append(f"CAPEX total={total:,.0f} EUR")
-        if device_annual_opex:
-            total = sum(device_annual_opex.values())
-            parts.append(f"annual OPEX total={total:,.0f} EUR")
         return f"Investment parameters set: {', '.join(parts)}"
 
     def review(self, scenario_id: str) -> dict[str, Any]:
@@ -342,14 +362,21 @@ class ScenarioStore:
         scenario = self.get(scenario_id)
 
         device_summaries = []
+        total_capex = 0.0
+        total_opex = 0.0
         for d in scenario.devices:
-            device_summaries.append(
-                {
-                    "name": d.name,
-                    "type": d.device_type,
-                    "summary": _device_summary(d),
-                }
-            )
+            entry = {
+                "name": d.name,
+                "type": d.device_type,
+                "summary": _device_summary(d),
+            }
+            if d.investment:
+                capex = d.investment.get("capital_cost") or 0.0
+                opex = d.investment.get("annual_opex") or 0.0
+                total_capex += capex
+                total_opex += opex
+                entry["investment"] = f"CAPEX {capex:,.0f} EUR, OPEX {opex:,.0f} EUR/year"
+            device_summaries.append(entry)
 
         timespan_str = "not set"
         if scenario.timespan:
@@ -360,15 +387,15 @@ class ScenarioStore:
             else:
                 timespan_str = f"{ts.start_year}, {ts.years} year(s), {effective_intervals} intervals"
 
-        investment_str = "not set (no CAPEX/OPEX analysis)"
+        investment_str = "not set (no NPV/IRR analysis)"
         if scenario.investment_params:
             ip = scenario.investment_params
             parts = [f"{ip.discount_rate:.1%} discount rate"]
             if ip.project_lifetime_years:
                 parts.append(f"{ip.project_lifetime_years}y lifetime")
-            if ip.device_capital_costs:
-                parts.append(f"CAPEX for {len(ip.device_capital_costs)} devices")
             investment_str = ", ".join(parts)
+        if total_capex or total_opex:
+            investment_str += f"; devices carry CAPEX {total_capex:,.0f} EUR, OPEX {total_opex:,.0f} EUR/year"
 
         errors = []
         if not scenario.devices:
@@ -459,11 +486,6 @@ class ScenarioStore:
             inv_params = InvestmentParameters(
                 discount_rate=ip.discount_rate,
                 project_lifetime_years=lifetime,
-                investment_budget=None,
-                carbon_price=None,
-                price_escalation_rate=None,
-                device_capital_costs=ip.device_capital_costs,
-                device_annual_opex=ip.device_annual_opex,
             )
 
         return InvestmentPlanningRequest(
@@ -513,7 +535,13 @@ def _device_summary(config: DeviceConfig) -> str:
         pwr = props.get("max_power", "?")
         eff = props.get("efficiency", "?")
         eff_str = f"{float(eff) * 100:.0f}%" if isinstance(eff, (int, float)) else str(eff)
-        return f"{cap} MWh / {pwr} MW / {eff_str} eff"
+        sizing = []
+        if props.get("power_sizing"):
+            sizing.append("power sizing")
+        if props.get("capacity_sizing"):
+            sizing.append("energy sizing")
+        sizing_str = f" + {' + '.join(sizing)}" if sizing else ""
+        return f"{cap} MWh / {pwr} MW / {eff_str} eff{sizing_str}"
 
     elif dtype == "chp":
         gas = props.get("gas_input", "?")
@@ -553,13 +581,22 @@ def _device_summary(config: DeviceConfig) -> str:
         max_imp = props.get("max_import", "?")
         price = props.get("price")
         price_str = _price_summary(price)
-        return f"max {max_imp} MW, {price_str}"
+        reservation_str = ", capacity reservation" if props.get("capacity_reservation") else ""
+        return f"max {max_imp} MW, {price_str}{reservation_str}"
+
+    elif dtype == "cz_distribution_import":
+        max_imp = props.get("max_import", "?")
+        price_str = _price_summary(props.get("price"))
+        reserved = props.get("reserved_capacity")
+        reserved_str = "R=optimize" if reserved is None else f"R={reserved} MW"
+        return f"max {max_imp} MW, {price_str}, monthly CZ tariff T1/T2, {reserved_str}"
 
     elif dtype in ("electricity_export", "heat_export"):
         max_exp = props.get("max_export", "?")
         price = props.get("price")
         price_str = _price_summary(price)
-        return f"max {max_exp} MW, {price_str}"
+        reservation_str = ", capacity reservation" if props.get("capacity_reservation") else ""
+        return f"max {max_exp} MW, {price_str}{reservation_str}"
 
     return f"{dtype} device"
 

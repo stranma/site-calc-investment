@@ -30,6 +30,31 @@ class Job(BaseModel):
     suggestion: Optional[str] = Field(None, description="Suggestion for resolving errors")
 
 
+class ReservationPeriod(BaseModel):
+    """One billing period of a capacity reservation result."""
+
+    start: datetime = Field(..., description="Billing period start")
+    end: datetime = Field(..., description="Billing period end (exclusive)")
+    peak: float = Field(..., description="Measured peak of the watched flow in the period (MW)")
+    tariff: Optional[str] = Field(None, description="Selected tariff name (None for unpriced limits)")
+    payment: float = Field(..., description="Charge billed for this period (EUR)")
+
+
+class CapacityReservationResult(BaseModel):
+    """Result of one capacity reservation on a device.
+
+    ``reserved`` is the contracted value, or the optimizer's sizing
+    decision when the reservation was left open (e.g. battery power
+    sizing or an optimized grid connection capacity).
+    """
+
+    kind: str = Field(..., description="power_sizing | capacity_sizing | capacity_reservation")
+    material: Optional[str] = Field(None, description="Watched material (e.g. 'electricity')")
+    reserved: float = Field(..., description="Contracted or optimizer-sized capacity (MW; MWh for capacity_sizing)")
+    total_payment: float = Field(..., description="Sum of all period payments (EUR)")
+    periods: List[ReservationPeriod] = Field(default_factory=list, description="Per-billing-period breakdown")
+
+
 class DeviceSchedule(BaseModel):
     """Optimized schedule for a single device.
 
@@ -45,6 +70,9 @@ class DeviceSchedule(BaseModel):
     ancillary_reservations: Optional[Dict[str, List[float]]] = Field(
         None, description="Reserved capacity by service (e.g., {'afrr_plus': [...], 'afrr_minus': [...]})"
     )
+    capacity_reservations: Optional[List[CapacityReservationResult]] = Field(
+        None, description="Capacity reservation results (sizing decisions and period charges)"
+    )
 
 
 class SiteResult(BaseModel):
@@ -58,9 +86,11 @@ class InvestmentMetrics(BaseModel):
     """Investment analysis metrics.
 
     Financial metrics calculated from the optimization results.
-    NPV and IRR are typically calculated client-side using the
-    annual_revenue_by_year and annual_costs_by_year arrays along
-    with investment_parameters (discount_rate, device_capital_costs).
+    NPV and IRR are calculated client-side (see
+    ``analysis.calculate_investment_metrics``) from the
+    annual_revenue_by_year and annual_costs_by_year arrays, the
+    discount rate, and per-device ``investment`` blocks. The annual
+    cost arrays already include capacity-reservation charges.
     """
 
     npv: Optional[float] = Field(None, description="Net present value (EUR) - typically calculated client-side")

@@ -148,7 +148,7 @@ async def test_full_scenario_assembly_via_mcp(client: Client) -> None:
         {
             "scenario_id": sid,
             "discount_rate": 0.05,
-            "device_capital_costs": {"Battery1": 500000},
+            "project_lifetime_years": 10,
         },
     )
 
@@ -181,7 +181,7 @@ async def test_full_scenario_assembly_via_mcp(client: Client) -> None:
 
 @pytest.mark.asyncio
 async def test_all_device_types_via_mcp(client: Client) -> None:
-    """All 15 device types can be added via MCP protocol."""
+    """All 16 device types can be added via MCP protocol."""
     data = _parse_result(await client.call_tool("create_scenario", {"name": "All Devices Test"}))
     sid = data["scenario_id"]
 
@@ -201,6 +201,19 @@ async def test_all_device_types_via_mcp(client: Client) -> None:
         ("electricity_export", "EE1", {"price": 50.0, "max_export": 10.0}),
         ("gas_import", "GI1", {"price": 35.0, "max_import": 5.0}),
         ("heat_export", "HE1", {"price": 40.0, "max_export": 2.0}),
+        (
+            "cz_distribution_import",
+            "DSO1",
+            {
+                "price": 85.0,
+                "max_import": 10.0,
+                "t1_reserved_price": 86000.0,
+                "t1_peak_price": 30000.0,
+                "t2_reserved_price": 65000.0,
+                "t2_peak_price": 95000.0,
+                "reserved_capacity": 5.0,
+            },
+        ),
         ("electricity_demand", "ED1", {"max_demand_profile": 5.0}),
         ("heat_demand", "HD1", {"max_demand_profile": 3.0}),
     ]
@@ -212,7 +225,7 @@ async def test_all_device_types_via_mcp(client: Client) -> None:
         )
 
     review = _parse_result(await client.call_tool("review_scenario", {"scenario_id": sid}))
-    assert len(review["devices"]) == 15
+    assert len(review["devices"]) == 16
     assert "Valid" in review["validation"]
 
 

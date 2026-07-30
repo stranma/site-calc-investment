@@ -3,11 +3,14 @@
 import pytest
 from pydantic import ValidationError
 
+from site_calc_investment.models.capacity import CapacityReservation, CapacityTariff, DeviceInvestment
 from site_calc_investment.models.devices import (
     CHP,
     Battery,
     BatteryProperties,
     CHPProperties,
+    CzDistributionImport,
+    CzDistributionImportProperties,
     DemandProperties,
     ElectricityDemand,
     ElectricityExport,
@@ -16,10 +19,12 @@ from site_calc_investment.models.devices import (
     FixedProduction,
     FixedProfileProperties,
     GasImport,
+    GasImportProperties,
     HeatAccumulator,
     HeatAccumulatorProperties,
     HeatDemand,
     HeatExport,
+    HeatExportProperties,
     MarketExportProperties,
     MarketImportProperties,
     MaxPowerConsumption,
@@ -331,30 +336,227 @@ class TestMarketDevices:
     def test_gas_import_creation(self):
         """Test gas import device."""
         prices = [25.0] * 24
-        device = GasImport(name="GasSupply", properties=MarketImportProperties(price=prices, max_import=10.0))
+        device = GasImport(name="GasSupply", properties=GasImportProperties(price=prices, max_import=10.0))
 
         assert device.type == "gas_import"
 
     def test_heat_export_creation(self):
         """Test heat export device."""
         prices = [40.0] * 24
-        device = HeatExport(name="HeatExport", properties=MarketExportProperties(price=prices, max_export=3.0))
+        device = HeatExport(name="HeatExport", properties=HeatExportProperties(price=prices, max_export=3.0))
 
         assert device.type == "heat_export"
 
-    def test_market_device_with_unit_cost(self):
-        """Test market device with capacity cost."""
+    def test_market_unit_cost_fields_removed(self):
+        """The old unit-cost fields must be rejected (use capacity_reservation)."""
+        prices = [30.0] * 24
+        with pytest.raises(ValidationError):
+            MarketImportProperties(price=prices, max_import=8.0, max_import_unit_cost=144.0)
+        with pytest.raises(ValidationError):
+            MarketExportProperties(price=prices, max_export=8.0, max_export_unit_cost=144.0)
+
+    def test_market_device_with_capacity_reservation(self):
+        """Market devices accept a capacity reservation."""
         prices = [30.0] * 24
         device = ElectricityImport(
             name="GridImport",
             properties=MarketImportProperties(
                 price=prices,
                 max_import=8.0,
-                max_import_unit_cost=144.0,  # EUR/MW/year
+                capacity_reservation=CapacityReservation(
+                    periods="calendar_month",
+                    reserved=5.0,
+                    tariffs=[CapacityTariff(name="T1", reserved_price=80_000.0, peak_price=30_000.0)],
+                ),
             ),
         )
 
-        assert device.properties.max_import_unit_cost == 144.0
+        assert device.properties.capacity_reservation.reserved == 5.0
+        assert device.properties.capacity_reservation.tariffs[0].name == "T1"
+
+    def test_gas_heat_props_reject_capacity_reservation(self):
+        """Gas import and heat export do not support capacity reservations."""
+        reservation = {"periods": "calendar_month", "reserved": 2.0}
+        with pytest.raises(ValidationError):
+            GasImportProperties(price=[25.0] * 24, max_import=10.0, capacity_reservation=reservation)
+        with pytest.raises(ValidationError):
+            HeatExportProperties(price=[40.0] * 24, max_export=3.0, capacity_reservation=reservation)
+
+
+class TestCapacityReservation:
+    """Tests for the CapacityReservation/CapacityTariff models."""
+
+    def test_tariff_defaults_and_validation(self):
+        tariff = CapacityTariff(name="T1", reserved_price=80_000.0, peak_price=30_000.0)
+        assert tariff.fixed_price == 0.0
+
+        with pytest.raises(ValidationError):
+            CapacityTariff(name="", reserved_price=1.0, peak_price=0.0)
+        with pytest.raises(ValidationError):
+            CapacityTariff(name="T1", reserved_price=-1.0, peak_price=0.0)
+
+    def test_unpriced_limit_requires_fixed_reserved(self):
+        """An optimized R needs every tariff to carry a positive reserved price."""
+        # No tariffs and no reserved value -> invalid
+        with pytest.raises(ValidationError, match="reserved_price"):
+            CapacityReservation(periods="calendar_month")
+        # Zero reserved_price tariff with optimized R -> invalid
+        with pytest.raises(ValidationError, match="reserved_price"):
+            CapacityReservation(
+                periods="calendar_month",
+                tariffs=[CapacityTariff(name="T1", reserved_price=0.0, peak_price=10.0)],
+            )
+        # Fixed reserved value -> valid even unpriced
+        reservation = CapacityReservation(periods="calendar_month", reserved=5.0)
+        assert reservation.reserved == 5.0
+
+    def test_bounds_consistency(self):
+        with pytest.raises(ValidationError, match="min_reserved cannot exceed"):
+            CapacityReservation(periods="horizon", reserved=5.0, min_reserved=6.0, max_reserved=5.5)
+        with pytest.raises(ValidationError, match="below min_reserved"):
+            CapacityReservation(periods="horizon", reserved=1.0, min_reserved=2.0)
+        with pytest.raises(ValidationError, match="exceed max_reserved"):
+            CapacityReservation(periods="horizon", reserved=9.0, max_reserved=8.0)
+
+    def test_invalid_periods_and_timezone(self):
+        with pytest.raises(ValidationError):
+            CapacityReservation(periods="weekly", reserved=5.0)
+        with pytest.raises(ValidationError, match="timezone"):
+            CapacityReservation(periods="calendar_month", reserved=5.0, timezone="Not/AZone")
+
+    def test_battery_power_sizing_accepted(self):
+        props = BatteryProperties(
+            capacity=8.0,
+            max_power=10.0,
+            efficiency=0.92,
+            power_sizing=CapacityReservation(
+                periods="horizon",
+                tariffs=[
+                    CapacityTariff(name="string-inverter", reserved_price=95_000.0, peak_price=0.0),
+                    CapacityTariff(
+                        name="central-inverter", reserved_price=70_000.0, peak_price=0.0, fixed_price=40_000.0
+                    ),
+                ],
+            ),
+        )
+        assert len(props.power_sizing.tariffs) == 2
+
+    def test_battery_capacity_sizing_restricted_form(self):
+        """capacity_sizing accepts only the single-tariff whole-horizon form."""
+        valid = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+        )
+        props = BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92, capacity_sizing=valid)
+        assert props.capacity_sizing.tariffs[0].reserved_price == 30_000.0
+
+        # Monthly periods -> rejected
+        with pytest.raises(ValidationError, match="single-tariff whole-horizon"):
+            BatteryProperties(
+                capacity=8.0,
+                max_power=10.0,
+                efficiency=0.92,
+                capacity_sizing=CapacityReservation(
+                    periods="calendar_month",
+                    tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+                ),
+            )
+        # Two tariffs -> rejected
+        with pytest.raises(ValidationError, match="single-tariff whole-horizon"):
+            BatteryProperties(
+                capacity=8.0,
+                max_power=10.0,
+                efficiency=0.92,
+                capacity_sizing=CapacityReservation(
+                    periods="horizon",
+                    tariffs=[
+                        CapacityTariff(name="a", reserved_price=30_000.0, peak_price=0.0),
+                        CapacityTariff(name="b", reserved_price=20_000.0, peak_price=0.0, fixed_price=50_000.0),
+                    ],
+                ),
+            )
+        # Peak price on the tariff -> rejected
+        with pytest.raises(ValidationError, match="single-tariff whole-horizon"):
+            BatteryProperties(
+                capacity=8.0,
+                max_power=10.0,
+                efficiency=0.92,
+                capacity_sizing=CapacityReservation(
+                    periods="horizon",
+                    tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=1.0)],
+                ),
+            )
+
+
+class TestCzDistributionImport:
+    """Tests for the Czech distribution-tariff import device."""
+
+    def _props(self, **overrides):
+        base = dict(
+            price=[85.0] * 24,
+            max_import=10.0,
+            t1_reserved_price=86_000.0,
+            t1_peak_price=30_000.0,
+            t2_reserved_price=65_000.0,
+            t2_peak_price=95_000.0,
+        )
+        base.update(overrides)
+        return CzDistributionImportProperties(**base)
+
+    def test_creation_with_fixed_reserved(self):
+        props = self._props(reserved_capacity=5.0)
+        device = CzDistributionImport(name="DSO", properties=props)
+        assert device.type == "cz_distribution_import"
+        assert device.properties.timezone == "Europe/Prague"
+
+    def test_optimized_reserved_requires_positive_prices(self):
+        # None reserved_capacity with positive prices -> OK (optimizer sizes R)
+        props = self._props(reserved_capacity=None)
+        assert props.reserved_capacity is None
+
+        # Zero reserved price with optimized R -> rejected
+        with pytest.raises(ValidationError):
+            self._props(reserved_capacity=None, t2_reserved_price=0.0)
+
+    def test_to_capacity_reservation_mapping(self):
+        reservation = self._props(reserved_capacity=5.0).to_capacity_reservation()
+        assert reservation.periods == "calendar_month"
+        assert reservation.timezone == "Europe/Prague"
+        assert [t.name for t in reservation.tariffs] == ["T1", "T2"]
+        assert reservation.tariffs[0].reserved_price == 86_000.0
+        assert reservation.tariffs[1].peak_price == 95_000.0
+        assert reservation.reserved == 5.0
+
+    def test_bounds_validation(self):
+        with pytest.raises(ValidationError):
+            self._props(reserved_capacity=1.0, min_reserved=2.0)
+
+
+class TestDeviceInvestment:
+    """Tests for the per-device investment block."""
+
+    def test_investment_on_any_device(self):
+        battery = Battery(
+            name="BESS",
+            properties=BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92),
+            investment=DeviceInvestment(capital_cost=2_000_000.0, annual_opex=20_000.0),
+        )
+        assert battery.investment.capital_cost == 2_000_000.0
+
+        pv = PhotovoltaicSteerable(
+            name="PV",
+            properties=PhotovoltaicSteerableProperties(max_power_profile=[1.0] * 24),
+            investment=DeviceInvestment(capital_cost=500_000.0),
+        )
+        assert pv.investment.annual_opex is None
+
+    def test_investment_defaults_to_none(self):
+        battery = Battery(name="BESS", properties=BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92))
+        assert battery.investment is None
+
+    def test_negative_costs_rejected(self):
+        with pytest.raises(ValidationError):
+            DeviceInvestment(capital_cost=-1.0)
 
 
 class TestSchedule:
