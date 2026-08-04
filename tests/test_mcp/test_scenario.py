@@ -608,3 +608,109 @@ class TestScenarioRecordJob:
         store.record_job(scenario_id, "job_2")
         scenario = store.get(scenario_id)
         assert len(scenario.jobs) == 2
+
+    def test_find_by_job(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.record_job(scenario_id, "job_xyz")
+        found = store.find_by_job("job_xyz")
+        assert found is not None and found.id == scenario_id
+        assert store.find_by_job("job_unknown") is None
+
+
+class TestDeviceSummaryBranches:
+    """Summary strings for sizing suffixes and the CZ optimize case."""
+
+    def test_battery_summary_lists_sizing_reservations(self, store: ScenarioStore, scenario_id: str) -> None:
+        sizing = {
+            "periods": "horizon",
+            "tariffs": [{"name": "capex", "reserved_price": 30000.0, "peak_price": 0.0}],
+        }
+        summary = store.add_device(
+            scenario_id=scenario_id,
+            device_type="battery",
+            name="B1",
+            properties={
+                "capacity": 10.0,
+                "max_power": 5.0,
+                "efficiency": 0.9,
+                "power_sizing": sizing,
+                "capacity_sizing": sizing,
+            },
+        )
+        assert "power sizing" in summary
+        assert "energy sizing" in summary
+
+    def test_battery_summary_without_sizing_has_no_suffix(self, store: ScenarioStore, scenario_id: str) -> None:
+        summary = store.add_device(
+            scenario_id=scenario_id,
+            device_type="battery",
+            name="B2",
+            properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+        )
+        assert "sizing" not in summary
+
+    def test_cz_import_summary_reports_optimized_reservation(self, store: ScenarioStore, scenario_id: str) -> None:
+        summary = store.add_device(
+            scenario_id=scenario_id,
+            device_type="cz_distribution_import",
+            name="DSO",
+            properties={
+                "price": 60.0,
+                "max_import": 10.0,
+                "t1_reserved_price": 190.0,
+                "t1_peak_price": 19.0,
+                "t2_reserved_price": 23.0,
+                "t2_peak_price": 227.0,
+            },
+        )
+        assert "R=optimize" in summary
+
+    def test_cz_import_summary_reports_fixed_reservation(self, store: ScenarioStore, scenario_id: str) -> None:
+        summary = store.add_device(
+            scenario_id=scenario_id,
+            device_type="cz_distribution_import",
+            name="DSO2",
+            properties={
+                "price": 60.0,
+                "max_import": 10.0,
+                "t1_reserved_price": 190.0,
+                "t1_peak_price": 19.0,
+                "t2_reserved_price": 23.0,
+                "t2_peak_price": 227.0,
+                "reserved_capacity": 5.0,
+            },
+        )
+        assert "R=5.0 MW" in summary
+
+
+class TestAddDeviceInvestmentValidation:
+    """Eager validation of the investment block at add_device time."""
+
+    def test_typo_key_rejected(self, store: ScenarioStore, scenario_id: str) -> None:
+        with pytest.raises(ValueError, match="Invalid investment block"):
+            store.add_device(
+                scenario_id=scenario_id,
+                device_type="battery",
+                name="B1",
+                properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+                investment={"capex": 1000},
+            )
+
+    def test_wrong_type_rejected(self, store: ScenarioStore, scenario_id: str) -> None:
+        with pytest.raises(ValueError, match="Invalid investment block"):
+            store.add_device(
+                scenario_id=scenario_id,
+                device_type="battery",
+                name="B1",
+                properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+                investment={"capital_cost": "abc"},
+            )
+
+    def test_valid_block_accepted(self, store: ScenarioStore, scenario_id: str) -> None:
+        summary = store.add_device(
+            scenario_id=scenario_id,
+            device_type="battery",
+            name="B1",
+            properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+            investment={"capital_cost": 1000.0, "annual_opex": 50.0},
+        )
+        assert summary

@@ -286,6 +286,14 @@ class ScenarioStore:
                 "Device names must be unique within a scenario."
             )
 
+        if investment is not None:
+            # Validate eagerly so a typo ({"capex": 1}) or wrong type fails
+            # here at input time, not at submit time in _build_device.
+            try:
+                DeviceInvestment(**investment)
+            except Exception as e:
+                raise ValueError(f"Invalid investment block for device '{name}': {e}") from e
+
         config = DeviceConfig(
             device_type=dtype, name=name, properties=properties, schedule=schedule, investment=investment
         )
@@ -499,6 +507,13 @@ class ScenarioStore:
         """Record a submitted job ID against a scenario."""
         scenario = self.get(scenario_id)
         scenario.jobs.append(job_id)
+
+    def find_by_job(self, job_id: str) -> Optional[Scenario]:
+        """Return the scenario that submitted the given job, if any."""
+        for scenario in self._scenarios.values():
+            if job_id in scenario.jobs:
+                return scenario
+        return None
 
     def delete(self, scenario_id: str) -> None:
         """Delete a draft scenario.

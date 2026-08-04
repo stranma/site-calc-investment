@@ -97,8 +97,9 @@ ts = TimeSpan(
 # Helper for full years
 ts = TimeSpan.for_years(start_year=2025, years=10, resolution=Resolution.HOUR_1)
 
-# Access computed properties
-print(ts.end)  # 2035-01-01 00:00:00+01:00
+# Access computed properties. Note: intervals count fixed 8760-hour years,
+# so leap days are NOT included -- a "10-year" horizon is 3650 days and its
+# end lands slightly before the calendar decade boundary.
 print(ts.duration)  # timedelta(days=3650)
 print(ts.years)  # 10.0
 ```
@@ -510,8 +511,8 @@ annual_revenues = aggregate_annual(
 ```python
 {
     "investment_metrics": {
-        "total_revenue_10y": 5000000.0,  # Total revenue over horizon
-        "total_costs_10y": 3000000.0,  # Total costs (fuel, O&M, capacity charges)
+        "total_revenue_10y": 5175000.0,  # Total revenue over horizon (sum of annual_revenue_by_year)
+        "total_costs_10y": 2950000.0,  # Total costs incl. capacity charges (sum of annual_costs_by_year)
         "npv": None,  # Calculated client-side
         "irr": None,  # Calculated client-side
         "payback_period_years": None,  # Calculated client-side
@@ -855,7 +856,7 @@ plot_sensitivity(discount_rates, npvs, xlabel="Discount Rate", ylabel="NPV (€)
 ### 14.3 Modified Behavior
 
 - CHP `is_binary` ignored (always continuous)
-- Longer solver time limits (up to 900s vs 300s default)
+- Higher solver time limit cap (900 seconds maximum; the default remains 300 seconds)
 - Longer default poll intervals (30s vs 5s)
 
 ---

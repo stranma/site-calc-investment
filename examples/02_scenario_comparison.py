@@ -18,6 +18,7 @@ from site_calc_investment import (
     InvestmentPlanningRequest,
     OptimizationConfig,
     Site,
+    calculate_investment_metrics,
     compare_scenarios,
 )
 from site_calc_investment.models.requests import TimeSpanInvestment
@@ -53,6 +54,8 @@ def create_scenario(
 
     # Battery sized for 2-hour duration
     # CAPEX: EUR 100/kWh; O&M: EUR 1/kWh/year
+    capex = capacity_mwh * 1000 * 100
+    opex = capacity_mwh * 1000 * 1
     battery = Battery(
         name="Battery1",
         properties={
@@ -61,10 +64,7 @@ def create_scenario(
             "efficiency": 0.90,
             "initial_soc": 0.5,
         },
-        investment=DeviceInvestment(
-            capital_cost=capacity_mwh * 1000 * 100,
-            annual_opex=capacity_mwh * 1000 * 1,
-        ),
+        investment=DeviceInvestment(capital_cost=capex, annual_opex=opex),
     )
 
     grid_import = ElectricityImport(
@@ -99,8 +99,8 @@ def create_scenario(
 
     print(f"  Capacity:   {capacity_mwh:.0f} MWh")
     print(f"  Power:      {capacity_mwh / 2:.0f} MW")
-    print(f"  CAPEX:      EUR {battery.investment.capital_cost:,.0f}")
-    print(f"  Annual O&M: EUR {battery.investment.annual_opex:,.0f}")
+    print(f"  CAPEX:      EUR {capex:,.0f}")
+    print(f"  Annual O&M: EUR {opex:,.0f}")
 
     job = client.create_planning_job(request)
     print(f"\n  Job ID: {job.job_id}")
@@ -110,12 +110,21 @@ def create_scenario(
 
     print(f"  Completed in {result.summary.solve_time_seconds:.0f}s")
 
-    if result.investment_metrics:
-        metrics = result.investment_metrics
-        npv_str = f"EUR {metrics.npv:,.0f}" if metrics.npv else "N/A"
-        irr_str = f"{metrics.irr * 100:.2f}%" if metrics.irr else "N/A"
-        payback_str = f"{metrics.payback_period_years:.1f} years" if metrics.payback_period_years else "N/A"
-        print(f"\n  NPV:     {npv_str}")
+    # NPV/IRR/payback are calculated client-side from the server's annual
+    # arrays so the per-device `investment` blocks (CAPEX/O&M) are included.
+    server_metrics = result.investment_metrics
+    if server_metrics and server_metrics.annual_revenue_by_year and server_metrics.annual_costs_by_year:
+        metrics = calculate_investment_metrics(
+            annual_revenues=server_metrics.annual_revenue_by_year,
+            annual_costs=server_metrics.annual_costs_by_year,
+            discount_rate=inv_params.discount_rate,
+            devices=site.devices,
+        )
+        irr_str = f"{metrics['irr'] * 100:.2f}%" if metrics["irr"] is not None else "N/A"
+        payback_str = (
+            f"{metrics['payback_period_years']:.1f} years" if metrics["payback_period_years"] is not None else "N/A"
+        )
+        print(f"\n  NPV:     EUR {metrics['npv']:,.0f}")
         print(f"  IRR:     {irr_str}")
         print(f"  Payback: {payback_str}")
 

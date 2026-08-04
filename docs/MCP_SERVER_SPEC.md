@@ -495,6 +495,10 @@ LLM actions:
 ```
 
 LLM then presents the results: profit, NPV, IRR, payback period.
+`get_job_result` computes NPV/IRR/payback client-side from the annual
+revenue/cost arrays using the submitting scenario's per-device
+`investment` blocks and discount rate (the raw server response leaves
+those fields null).
 
 ---
 

@@ -121,6 +121,7 @@ This guide explains how to copy the `client-investment` package to a new standal
 The folder is already prepared with all necessary files:
 
 #### ✅ Included Files
+
 - `LICENSE` - MIT license
 - `README.md` - Complete documentation
 - `CHANGELOG.md` - Version history
@@ -130,6 +131,7 @@ The folder is already prepared with all necessary files:
 - `.github/workflows/ci.yml` - GitHub Actions CI
 
 #### ✅ Package Structure
+
 ```
 client-investment/
 ├── site_calc_investment/       # Main package (ready)
@@ -187,6 +189,7 @@ git push -u origin main
 On GitHub, configure:
 
 #### Branch Protection
+
 - Go to Settings → Branches → Add rule for `main`
 - ✅ Require pull request reviews before merging
 - ✅ Require status checks to pass before merging
@@ -194,6 +197,7 @@ On GitHub, configure:
 - ✅ Require branches to be up to date before merging
 
 #### Topics/Tags
+
 Add topics for discoverability:
 - `python`
 - `energy`
@@ -203,11 +207,13 @@ Add topics for discoverability:
 - `roi-analysis`
 
 #### About Section
+
 - **Description**: "Python client for Site-Calc investment planning API - long-term capacity planning and ROI analysis"
 - **Website**: (Your documentation site if available)
 - **Topics**: (As above)
 
 #### Enable Features
+
 - ✅ Issues
 - ✅ Wiki (optional)
 - ✅ Discussions (optional - good for community support)
@@ -260,6 +266,7 @@ To publish to PyPI:
 Once repository is live, update these files to replace example URLs:
 
 #### In `pyproject.toml`:
+
 ```toml
 [project.urls]
 Homepage = "https://github.com/YOUR-USERNAME/site-calc-investment"
@@ -269,11 +276,13 @@ Issues = "https://github.com/YOUR-USERNAME/site-calc-investment/issues"
 ```
 
 #### In `README.md`:
+
 - Update documentation links
 - Update repository links
 - Update API base URL (if different from example)
 
 #### In `CONTRIBUTING.md`:
+
 - Update clone URL
 
 ### Step 8: Add Badges to README (Optional)
@@ -310,15 +319,18 @@ After migration, verify:
 If keeping code in both the original `site-calc` repo and the new standalone repo:
 
 #### Option 1: Manual Sync
+
 - Make changes in `client-investment` folder in original repo
 - Periodically copy to standalone repo
 - Use git to commit and push
 
 #### Option 2: Git Subtree
+
 - Use `git subtree` to sync between repositories
 - More complex but keeps history
 
 #### Option 3: Monorepo + Separate Publish
+
 - Keep development in original repo
 - CI copies to separate repo on release
 - Automated with GitHub Actions

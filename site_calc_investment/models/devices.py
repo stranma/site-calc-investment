@@ -39,10 +39,12 @@ class BatteryProperties(BaseModel):
     capacity_sizing: Optional[CapacityReservation] = Field(
         None,
         description=(
-            "Let the optimizer size energy capacity (MWh). Use periods='horizon' with "
-            "tariffs as investment cost tiers (EUR/MWh); capacity is the sizing ceiling. "
-            "An optimizer-sized capacity must start empty (initial_soc defaults to 0 and "
-            "must not be set above 0 unless 'reserved' fixes the capacity)"
+            "Let the optimizer size energy capacity (MWh); capacity is the sizing "
+            "ceiling. The full reservation form is accepted (calendar periods, tariff "
+            "menus, bounds, timezone); periods='horizon' with reserved_price tiers "
+            "(EUR/MWh) is the one-shot CAPEX case. An optimizer-sized capacity must "
+            "start empty: initial_soc defaults to 0 and must not be set above 0 "
+            "unless 'reserved' fixes the capacity"
         ),
     )
 
@@ -513,33 +515,16 @@ def device_to_wire(device: Dict[str, Any]) -> Dict[str, Any]:
     device.pop("investment", None)
     if device.get("type") == "cz_distribution_import":
         p = device["properties"]
+        # Single source of truth for the T1/T2 -> reservation mapping:
+        # rebuild the properties model and reuse its own conversion.
+        reservation = CzDistributionImportProperties.model_validate(p).to_capacity_reservation()
         device = {
             "name": device["name"],
             "type": "electricity_import",
             "properties": {
                 "price": p["price"],
                 "max_import": p["max_import"],
-                "capacity_reservation": {
-                    "periods": "calendar_month",
-                    "tariffs": [
-                        {
-                            "name": "T1",
-                            "reserved_price": p["t1_reserved_price"],
-                            "peak_price": p["t1_peak_price"],
-                            "fixed_price": 0.0,
-                        },
-                        {
-                            "name": "T2",
-                            "reserved_price": p["t2_reserved_price"],
-                            "peak_price": p["t2_peak_price"],
-                            "fixed_price": 0.0,
-                        },
-                    ],
-                    "reserved": p["reserved_capacity"],
-                    "min_reserved": p["min_reserved"],
-                    "max_reserved": p["max_reserved"],
-                    "timezone": p["timezone"],
-                },
+                "capacity_reservation": reservation.model_dump(),
             },
         }
     return device

@@ -1,14 +1,18 @@
 """FastMCP server with all tool definitions for investment planning."""
 
+from types import SimpleNamespace
 from typing import Any, Literal, Optional, cast
 
 from fastmcp import FastMCP
 
 from site_calc_investment import __version__
+from site_calc_investment.analysis.financial import calculate_investment_metrics
 from site_calc_investment.api.client import InvestmentClient
 from site_calc_investment.mcp.config import Config, get_data_dir
 from site_calc_investment.mcp.data_loaders import fetch_url_to_file, save_csv
 from site_calc_investment.mcp.scenario import ScenarioStore
+from site_calc_investment.models.capacity import DeviceInvestment
+from site_calc_investment.models.responses import InvestmentPlanningResponse
 
 mcp = FastMCP(
     "site-calc-investment",
@@ -292,6 +296,33 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
             "total_revenue": metrics.total_revenue_10y,
             "total_costs": metrics.total_costs_10y,
         }
+        # The server never fills npv/irr/payback -- they are client-side
+        # values that fold in the per-device `investment` blocks. Compute
+        # them here from the annual arrays when the submitting scenario is
+        # known (its device investments and discount rate live in the store).
+        scenario = _store.find_by_job(job_id)
+        if scenario is not None and metrics.annual_revenue_by_year and metrics.annual_costs_by_year:
+            devices = [
+                SimpleNamespace(investment=DeviceInvestment(**dc.investment))
+                for dc in scenario.devices
+                if dc.investment
+            ]
+            discount_rate = scenario.investment_params.discount_rate if scenario.investment_params else 0.05
+            client_metrics = calculate_investment_metrics(
+                annual_revenues=metrics.annual_revenue_by_year,
+                annual_costs=metrics.annual_costs_by_year,
+                discount_rate=discount_rate,
+                devices=devices,
+            )
+            result["investment_metrics"].update(
+                {
+                    "npv": client_metrics["npv"],
+                    "irr": client_metrics["irr"],
+                    "payback_period_years": client_metrics["payback_period_years"],
+                    "initial_investment": client_metrics["initial_investment"],
+                    "discount_rate": discount_rate,
+                }
+            )
 
     reservations = _build_reservation_summaries(response)
     if reservations:
@@ -321,7 +352,7 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
     return result
 
 
-def _build_reservation_summaries(response: Any) -> dict[str, Any]:
+def _build_reservation_summaries(response: InvestmentPlanningResponse) -> dict[str, Any]:
     """Compact per-device capacity reservation summaries (sized capacity, payments).
 
     Keys are device names; with multiple sites the key is prefixed with
@@ -353,7 +384,7 @@ def _build_reservation_summaries(response: Any) -> dict[str, Any]:
     return summaries
 
 
-def _build_device_summaries(response: Any, detail_level: str) -> dict[str, Any]:
+def _build_device_summaries(response: InvestmentPlanningResponse, detail_level: str) -> dict[str, Any]:
     """Build per-device summaries from response data."""
     summaries: dict[str, Any] = {}
 
@@ -560,10 +591,12 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "required": False,
                     "description": (
                         "Let the optimizer size energy capacity (MWh) up to capacity. "
-                        "Use periods='horizon' with tariffs as investment cost tiers "
-                        "(EUR/MWh); multiple tariffs form a menu and the cheapest applies. "
-                        "An optimizer-sized capacity must start empty: initial_soc "
-                        "defaults to 0 and must not be set above 0. "
+                        "The full reservation form is accepted (calendar periods, tariff "
+                        "menus, bounds, timezone); periods='horizon' with reserved_price "
+                        "tiers (EUR/MWh) is the one-shot CAPEX case and the cheapest "
+                        "menu entry applies. An optimizer-sized capacity must start "
+                        "empty: initial_soc defaults to 0 and must not be set above 0 "
+                        "unless 'reserved' fixes the capacity. "
                         "Example: {'periods': 'horizon', 'tariffs': "
                         "[{'name': 'capex', 'reserved_price': 30000, 'peak_price': 0}]}"
                     ),
