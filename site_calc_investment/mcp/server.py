@@ -1,14 +1,18 @@
 """FastMCP server with all tool definitions for investment planning."""
 
+from types import SimpleNamespace
 from typing import Any, Literal, Optional, cast
 
 from fastmcp import FastMCP
 
 from site_calc_investment import __version__
+from site_calc_investment.analysis.financial import calculate_investment_metrics
 from site_calc_investment.api.client import InvestmentClient
 from site_calc_investment.mcp.config import Config, get_data_dir
 from site_calc_investment.mcp.data_loaders import fetch_url_to_file, save_csv
 from site_calc_investment.mcp.scenario import ScenarioStore
+from site_calc_investment.models.capacity import DeviceInvestment
+from site_calc_investment.models.responses import InvestmentPlanningResponse
 
 mcp = FastMCP(
     "site-calc-investment",
@@ -59,6 +63,7 @@ def add_device(
     name: str,
     properties: dict[str, Any],
     schedule: Optional[dict[str, Any]] = None,
+    investment: Optional[dict[str, Any]] = None,
 ) -> str:
     """Add a device to a draft scenario.
 
@@ -67,7 +72,7 @@ def add_device(
     fixed_production, max_power_production,
     fixed_consumption, max_power_consumption,
     electricity_import, electricity_export, gas_import, heat_export,
-    electricity_demand, heat_demand.
+    cz_distribution_import, electricity_demand, heat_demand.
 
     Properties support data shorthand for large arrays:
     - A number (e.g., 50.0) is expanded to a flat array matching the timespan
@@ -82,6 +87,10 @@ def add_device(
     :param name: Unique device name within the scenario.
     :param properties: Device-specific properties dict.
     :param schedule: Optional runtime constraints (can_run, must_run, etc.).
+    :param investment: Optional fixed costs for client-side NPV/IRR, e.g.
+                       {"capital_cost": 500000, "annual_opex": 10000}. Use
+                       sizing reservations instead for costs the optimizer
+                       should trade off (battery power_sizing/capacity_sizing).
     :returns: Summary string of the added device.
     """
     return _store.add_device(
@@ -90,6 +99,7 @@ def add_device(
         name=name,
         properties=properties,
         schedule=schedule,
+        investment=investment,
     )
 
 
@@ -116,26 +126,22 @@ def set_investment_params(
     scenario_id: str,
     discount_rate: float = 0.05,
     project_lifetime_years: Optional[int] = None,
-    device_capital_costs: Optional[dict[str, float]] = None,
-    device_annual_opex: Optional[dict[str, float]] = None,
 ) -> str:
-    """Set financial parameters for ROI calculation (NPV, IRR, payback).
+    """Set global financial parameters for ROI calculation (NPV, IRR, payback).
 
     Optional -- if not set, only raw profit numbers are returned.
+    Per-device CAPEX/OPEX belongs on each device: pass an `investment`
+    dict to add_device instead.
 
     :param scenario_id: Target scenario.
     :param discount_rate: Annual discount rate (0-0.5, e.g., 0.05 = 5%).
     :param project_lifetime_years: Project lifetime in years (defaults to timespan years).
-    :param device_capital_costs: CAPEX by device name in EUR (e.g., {"Battery1": 500000}).
-    :param device_annual_opex: Annual O&M cost by device name in EUR.
     :returns: Confirmation string.
     """
     return _store.set_investment_params(
         scenario_id=scenario_id,
         discount_rate=discount_rate,
         project_lifetime_years=project_lifetime_years,
-        device_capital_costs=device_capital_costs,
-        device_annual_opex=device_annual_opex,
     )
 
 
@@ -290,6 +296,37 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
             "total_revenue": metrics.total_revenue_10y,
             "total_costs": metrics.total_costs_10y,
         }
+        # The server never fills npv/irr/payback -- they are client-side
+        # values that fold in the per-device `investment` blocks. Compute
+        # them here from the annual arrays when the submitting scenario is
+        # known (its device investments and discount rate live in the store).
+        scenario = _store.find_by_job(job_id)
+        if scenario is not None and metrics.annual_revenue_by_year and metrics.annual_costs_by_year:
+            devices = [
+                SimpleNamespace(investment=DeviceInvestment(**dc.investment))
+                for dc in scenario.devices
+                if dc.investment
+            ]
+            discount_rate = scenario.investment_params.discount_rate if scenario.investment_params else 0.05
+            client_metrics = calculate_investment_metrics(
+                annual_revenues=metrics.annual_revenue_by_year,
+                annual_costs=metrics.annual_costs_by_year,
+                discount_rate=discount_rate,
+                devices=devices,
+            )
+            result["investment_metrics"].update(
+                {
+                    "npv": client_metrics["npv"],
+                    "irr": client_metrics["irr"],
+                    "payback_period_years": client_metrics["payback_period_years"],
+                    "initial_investment": client_metrics["initial_investment"],
+                    "discount_rate": discount_rate,
+                }
+            )
+
+    reservations = _build_reservation_summaries(response)
+    if reservations:
+        result["capacity_reservations"] = reservations
 
     if detail_level in ("monthly", "full"):
         result["device_summaries"] = _build_device_summaries(response, detail_level)
@@ -304,6 +341,10 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
                     dev_data["soc"] = schedule.soc
                 if schedule.binary_status is not None:
                     dev_data["binary_status"] = schedule.binary_status
+                if schedule.capacity_reservations:
+                    dev_data["capacity_reservations"] = [
+                        r.model_dump(mode="json") for r in schedule.capacity_reservations
+                    ]
                 site_devices[dev_name] = dev_data
             sites_data[site_id] = {"device_schedules": site_devices}
         result["sites"] = sites_data
@@ -311,7 +352,39 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
     return result
 
 
-def _build_device_summaries(response: Any, detail_level: str) -> dict[str, Any]:
+def _build_reservation_summaries(response: InvestmentPlanningResponse) -> dict[str, Any]:
+    """Compact per-device capacity reservation summaries (sized capacity, payments).
+
+    Keys are device names; with multiple sites the key is prefixed with
+    the site id, since device names are only unique within one site.
+    """
+    summaries: dict[str, Any] = {}
+    multi_site = len(response.sites) > 1
+    for site_id, site_result in response.sites.items():
+        for dev_name, schedule in site_result.device_schedules.items():
+            if not schedule.capacity_reservations:
+                continue
+            entries = []
+            for res in schedule.capacity_reservations:
+                tariff_counts: dict[str, int] = {}
+                for period in res.periods:
+                    if period.tariff is not None:
+                        tariff_counts[period.tariff] = tariff_counts.get(period.tariff, 0) + 1
+                entries.append(
+                    {
+                        "kind": res.kind,
+                        "reserved": res.reserved,
+                        "total_payment": res.total_payment,
+                        "periods_count": len(res.periods),
+                        "tariffs_used": tariff_counts,
+                    }
+                )
+            key = f"{site_id}/{dev_name}" if multi_site else dev_name
+            summaries[key] = entries
+    return summaries
+
+
+def _build_device_summaries(response: InvestmentPlanningResponse, detail_level: str) -> dict[str, Any]:
     """Build per-device summaries from response data."""
     summaries: dict[str, Any] = {}
 
@@ -501,6 +574,32 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "default": 0.5,
                     "range": "0-1",
                     "description": "Target SOC at anchor points",
+                },
+                "power_sizing": {
+                    "type": "dict (CapacityReservation)",
+                    "required": False,
+                    "description": (
+                        "Let the optimizer size installed power (MW) up to max_power. "
+                        "Use periods='horizon' with tariffs as investment cost tiers (EUR/MW); "
+                        "multiple tariffs form a menu and the cheapest applies. "
+                        "Example: {'periods': 'horizon', 'tariffs': "
+                        "[{'name': 'capex', 'reserved_price': 95000, 'peak_price': 0}]}"
+                    ),
+                },
+                "capacity_sizing": {
+                    "type": "dict (CapacityReservation)",
+                    "required": False,
+                    "description": (
+                        "Let the optimizer size energy capacity (MWh) up to capacity. "
+                        "The full reservation form is accepted (calendar periods, tariff "
+                        "menus, bounds, timezone); periods='horizon' with reserved_price "
+                        "tiers (EUR/MWh) is the one-shot CAPEX case and the cheapest "
+                        "menu entry applies. An optimizer-sized capacity must start "
+                        "empty: initial_soc defaults to 0 and must not be set above 0 "
+                        "unless 'reserved' fixes the capacity. "
+                        "Example: {'periods': 'horizon', 'tariffs': "
+                        "[{'name': 'capex', 'reserved_price': 30000, 'peak_price': 0}]}"
+                    ),
                 },
             },
             "supports_schedule": True,
@@ -695,11 +794,15 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "unit": "MW",
                     "description": "Maximum import capacity",
                 },
-                "max_import_unit_cost": {
-                    "type": "float",
+                "capacity_reservation": {
+                    "type": "dict (CapacityReservation)",
                     "required": False,
-                    "unit": "EUR/MW/year",
-                    "description": "Reserved capacity cost",
+                    "description": (
+                        "Per-period capacity limit and charge on the import flow. "
+                        "Example: {'periods': 'calendar_month', 'reserved': 5.0, 'tariffs': "
+                        "[{'name': 'T1', 'reserved_price': 80000, 'peak_price': 30000}]}. "
+                        "For the Czech distribution tariff prefer cz_distribution_import"
+                    ),
                 },
             },
             "supports_schedule": False,
@@ -720,15 +823,93 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "unit": "MW",
                     "description": "Maximum export capacity",
                 },
-                "max_export_unit_cost": {
-                    "type": "float",
+                "capacity_reservation": {
+                    "type": "dict (CapacityReservation)",
                     "required": False,
-                    "unit": "EUR/MW/year",
-                    "description": "Export capacity cost",
+                    "description": (
+                        "Per-period capacity limit and charge on the export flow. "
+                        "Same structure as on electricity_import"
+                    ),
                 },
             },
             "supports_schedule": False,
             "example": {"price": 50.0, "max_export": 10.0},
+        },
+        "cz_distribution_import": {
+            "device_type": "cz_distribution_import",
+            "properties": {
+                "price": {
+                    "type": "float | list[float] | {file: str}",
+                    "required": True,
+                    "unit": "EUR/MWh",
+                    "description": "Energy price profile (commodity + regulated per-MWh components)",
+                },
+                "max_import": {
+                    "type": "float",
+                    "required": True,
+                    "unit": "MW",
+                    "description": "Physical connection limit",
+                },
+                "t1_reserved_price": {
+                    "type": "float",
+                    "required": True,
+                    "unit": "EUR/MW/month",
+                    "description": "T1 price per MW of reserved capacity",
+                },
+                "t1_peak_price": {
+                    "type": "float",
+                    "required": True,
+                    "unit": "EUR/MW/month",
+                    "description": "T1 price per MW of the monthly peak",
+                },
+                "t2_reserved_price": {
+                    "type": "float",
+                    "required": True,
+                    "unit": "EUR/MW/month",
+                    "description": "T2 price per MW of reserved capacity",
+                },
+                "t2_peak_price": {
+                    "type": "float",
+                    "required": True,
+                    "unit": "EUR/MW/month",
+                    "description": "T2 price per MW of the monthly peak",
+                },
+                "reserved_capacity": {
+                    "type": "float | null",
+                    "required": False,
+                    "unit": "MW",
+                    "description": "Contracted reserved capacity; null lets the optimizer size it",
+                },
+                "min_reserved": {
+                    "type": "float",
+                    "required": False,
+                    "default": 0.0,
+                    "unit": "MW",
+                    "description": "Lower bound for an optimized reserved capacity",
+                },
+                "max_reserved": {
+                    "type": "float",
+                    "required": False,
+                    "unit": "MW",
+                    "description": "Upper bound for an optimized reserved capacity (defaults to max_import)",
+                },
+                "timezone": {
+                    "type": "str",
+                    "required": False,
+                    "default": "Europe/Prague",
+                    "description": "IANA billing timezone",
+                },
+            },
+            "supports_schedule": False,
+            "example": {
+                "price": 85.0,
+                "max_import": 10.0,
+                "t1_reserved_price": 86000,
+                "t1_peak_price": 30000,
+                "t2_reserved_price": 65000,
+                "t2_peak_price": 95000,
+                "reserved_capacity": None,
+            },
         },
         "gas_import": {
             "device_type": "gas_import",
@@ -744,12 +925,6 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "required": True,
                     "unit": "MW",
                     "description": "Maximum gas import capacity",
-                },
-                "max_import_unit_cost": {
-                    "type": "float",
-                    "required": False,
-                    "unit": "EUR/MW/year",
-                    "description": "Reserved capacity cost",
                 },
             },
             "supports_schedule": False,
@@ -769,12 +944,6 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "required": True,
                     "unit": "MW",
                     "description": "Maximum heat export capacity",
-                },
-                "max_export_unit_cost": {
-                    "type": "float",
-                    "required": False,
-                    "unit": "EUR/MW/year",
-                    "description": "Export capacity cost",
                 },
             },
             "supports_schedule": False,

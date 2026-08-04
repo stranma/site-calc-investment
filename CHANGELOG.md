@@ -5,6 +5,91 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - Unreleased
+
+### Added
+
+- **Capacity reservations**: new `CapacityReservation` / `CapacityTariff`
+  models putting a per-billing-period capacity limit and charge on a device
+  flow. Billing periods: `calendar_month`, `calendar_year`, or `horizon`;
+  each period is charged `fixed_price + reserved_price * R + peak_price * peak`,
+  and with several tariffs on one reservation the cheapest tariff is assigned
+  automatically per period. The reserved capacity `R` is either contracted
+  (`reserved` set) or sized by the optimizer within
+  `[min_reserved, max_reserved]`. IANA `timezone` controls calendar-period
+  boundaries.
+- **`capacity_reservation` on `electricity_import` / `electricity_export`**:
+  model monthly grid capacity tariffs or other per-period capacity charges on
+  the market connection.
+- **Battery investment sizing**: `power_sizing` lets the optimizer size
+  installed power (MW) up to `max_power`, priced by a tariff menu (use
+  `periods='horizon'` for a one-shot investment cost in EUR/MW);
+  `capacity_sizing` sizes energy capacity (MWh) up to `capacity`, priced by
+  a tariff menu (EUR/MWh). An optimizer-sized capacity must start empty:
+  `initial_soc` defaults to 0 for sizing runs and must not be set above 0
+  (fix `reserved` to keep a non-zero initial SOC).
+- **New device type `cz_distribution_import`**: electricity import billed
+  under the Czech distribution capacity tariff (2027 tariff structure).
+  Monthly billing with a T1/T2 price menu (`t1_reserved_price` /
+  `t1_peak_price` / `t2_reserved_price` / `t2_peak_price`, EUR/MW/month);
+  `reserved_capacity` is contracted or left `None` for the optimizer to size;
+  `timezone` defaults to `Europe/Prague`. Serialized to the API as a plain
+  `electricity_import` with the equivalent monthly capacity reservation.
+- **Per-device investment costs**: every device accepts
+  `investment={"capital_cost": EUR, "annual_opex": EUR/year}` for client-side
+  NPV/IRR analysis. These values are stripped from the API payload and never
+  influence the optimization.
+- **Capacity reservation results**: `DeviceSchedule.capacity_reservations`
+  lists each reservation's `kind` (`power_sizing` | `capacity_sizing` |
+  `capacity_reservation`), watched `material`, contracted or optimizer-sized
+  `reserved` value, `total_payment`, and a per-billing-period breakdown
+  (`start`, `end`, `peak`, selected `tariff`, `payment`).
+- **`calculate_investment_metrics` analysis helper**: assembles NPV, IRR,
+  payback, initial investment, and annual net cash flows from the annual
+  revenue/cost arrays, the discount rate, and the devices' `investment`
+  blocks.
+- MCP: `add_device` gained an `investment` parameter and supports
+  `cz_distribution_import`; `get_job_result` includes a compact
+  `capacity_reservations` summary block (sized capacity, total payment,
+  tariffs used per device) with the raw per-period breakdown at
+  `detail_level='full'`; `get_device_schema` documents the new fields and
+  device type. Tool count stays 17.
+
+### Changed
+
+- **BREAKING**: `InvestmentParameters` now has only `discount_rate` and
+  `project_lifetime_years`; unknown fields raise validation errors
+  (`extra='forbid'`).
+- **BREAKING**: battery and market property classes reject unknown fields;
+  `gas_import` and `heat_export` now have dedicated property classes (price
+  and max flow only).
+- `annual_costs_by_year` in the results now includes capacity-reservation
+  charges (sizing payments and grid capacity tariffs).
+- MCP: `set_investment_params` parameters are now `scenario_id`,
+  `discount_rate`, `project_lifetime_years` only.
+
+### Removed
+
+- **BREAKING**: `InvestmentParameters` fields `device_capital_costs` and
+  `device_annual_opex` (moved to per-device `investment` blocks) and
+  `investment_budget`, `carbon_price`, `price_escalation_rate` (these were
+  never applied by the optimization service).
+- **BREAKING**: `max_import_unit_cost` / `max_export_unit_cost` on market
+  import/export properties (never applied by the optimization service; use a
+  `capacity_reservation` with a whole-horizon tariff for a priced peak-flow
+  ceiling).
+
+### Migration
+
+See `MIGRATION_GUIDE.md` ("Migrating from 1.2.x to 1.3.0") for the full
+field-by-field mapping. In short: move per-device CAPEX/OPEX from
+`InvestmentParameters` to each device's `investment` block, replace unit-cost
+fields with capacity reservations, and compute NPV/IRR with
+`calculate_investment_metrics` (without re-adding costs that a sizing
+reservation already charges).
+
+---
+
 ## [1.2.9] - 2026-07-09
 
 ### Added

@@ -1,7 +1,7 @@
 # Investment Client Specification
 
 **Package:** `site-calc-investment`
-**Version:** 1.0.0
+**Version:** 1.3.0
 **Purpose:** Long-term capacity planning and investment ROI analysis
 
 ---
@@ -23,7 +23,7 @@ The investment client provides Python bindings for the Site-Calc optimization AP
 | **Resolution** | 1-hour only |
 | **ANS Optimization** | ❌ No |
 | **Binary Variables** | ⚠️ Relaxed to continuous |
-| **Timeout** | 3600 seconds (1 hour) |
+| **Timeout** | 900 seconds (15 minutes) max |
 | **Endpoints** | `/device-planning` only |
 
 ### 1.2 Use Cases
@@ -70,7 +70,7 @@ from site_calc_investment import InvestmentClient
 
 client = InvestmentClient(
     base_url="https://api.site-calc.example.com",
-    api_key="inv_9876543210fedcba"  # Must start with 'inv_'
+    api_key="inv_9876543210fedcba",  # Must start with 'inv_'
 )
 ```
 
@@ -91,20 +91,17 @@ from site_calc_investment.models import TimeSpan, Resolution
 ts = TimeSpan(
     start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
     intervals=87600,  # 10 years × 8760 hours/year
-    resolution=Resolution.HOUR_1
+    resolution=Resolution.HOUR_1,
 )
 
 # Helper for full years
-ts = TimeSpan.for_years(
-    start_year=2025,
-    years=10,
-    resolution=Resolution.HOUR_1
-)
+ts = TimeSpan.for_years(start_year=2025, years=10, resolution=Resolution.HOUR_1)
 
-# Access computed properties
-print(ts.end)         # 2035-01-01 00:00:00+01:00
-print(ts.duration)    # timedelta(days=3650)
-print(ts.years)       # 10.0
+# Access computed properties. Note: intervals count fixed 8760-hour years,
+# so leap days are NOT included -- a "10-year" horizon is 3650 days and its
+# end lands slightly before the calendar decade boundary.
+print(ts.duration)  # timedelta(days=3650)
+print(ts.years)  # 10.0
 ```
 
 **Validation:**
@@ -126,14 +123,31 @@ from site_calc_investment.models import Battery
 battery = Battery(
     name="Battery1",
     properties={
-        "capacity": 10.0,          # MWh
-        "max_power": 5.0,          # MW
-        "efficiency": 0.90,        # 0-1
-        "initial_soc": 0.5         # 0-1
-    }
+        "capacity": 10.0,  # MWh
+        "max_power": 5.0,  # MW
+        "efficiency": 0.90,  # 0-1
+        "initial_soc": 0.5,  # 0-1
+    },
+    # Optional fixed costs for client-side NPV/IRR (never sent to the API):
+    investment={"capital_cost": 500000, "annual_opex": 5000},
     # No ancillary_services field!
 )
 ```
+
+Every device accepts the optional `investment` block
+(`{"capital_cost": EUR, "annual_opex": EUR/year}`). It is used only by the
+client-side financial analysis (`calculate_investment_metrics`) and is
+stripped from the API payload. For capacity costs the optimizer should trade
+off, use sizing reservations instead (see Section 4.4):
+
+- `power_sizing` -- the optimizer sizes installed power (MW) up to
+  `max_power`, priced by a tariff menu (use `periods="horizon"` for a
+  one-shot investment cost in EUR/MW).
+- `capacity_sizing` -- the optimizer sizes energy capacity (MWh) up to
+  `capacity`, priced by a tariff menu (use `periods="horizon"` for a
+  one-shot investment cost in EUR/MWh). An optimizer-sized capacity must
+  start empty: `initial_soc` defaults to 0 for sizing runs and must not
+  be set above 0 (fix `reserved` to keep a non-zero initial SOC).
 
 #### 4.2.2 CHP
 
@@ -146,11 +160,9 @@ chp = CHP(
         "gas_input": 8.0,
         "el_output": 3.0,
         "heat_output": 4.0,
-        "is_binary": False  # Treated as continuous for investment planning
+        "is_binary": False,  # Treated as continuous for investment planning
     },
-    schedule={
-        "max_hours_per_day": 20.0
-    }
+    schedule={"max_hours_per_day": 20.0},
 )
 ```
 
@@ -160,12 +172,12 @@ chp = CHP(
 
 ```python
 from site_calc_investment.models import (
-    PhotovoltaicNonSteerable,   # produces exactly power_profile
-    PhotovoltaicSteerable,      # produces in [0, max_power_profile], curtailable
-    FixedProduction,            # same semantics as nonsteerable PV
-    MaxPowerProduction,         # steerable production at cost_per_mwh (EUR/MWh)
-    FixedConsumption,           # consumes exactly power_profile
-    MaxPowerConsumption,        # steerable consumption worth value_per_mwh (EUR/MWh)
+    PhotovoltaicNonSteerable,  # produces exactly power_profile
+    PhotovoltaicSteerable,  # produces in [0, max_power_profile], curtailable
+    FixedProduction,  # same semantics as nonsteerable PV
+    MaxPowerProduction,  # steerable production at cost_per_mwh (EUR/MWh)
+    FixedConsumption,  # consumes exactly power_profile
+    MaxPowerConsumption,  # steerable consumption worth value_per_mwh (EUR/MWh)
 )
 
 pv = PhotovoltaicSteerable(
@@ -179,7 +191,7 @@ flex_load = MaxPowerConsumption(
     name="Electrolyzer",
     properties={
         "max_power_profile": [3.0] * 8760,  # MW
-        "value_per_mwh": 50.0,              # consumes only when price < 50 EUR/MWh
+        "value_per_mwh": 50.0,  # consumes only when price < 50 EUR/MWh
     },
 )
 ```
@@ -191,46 +203,127 @@ All profiles are absolute power in MW per interval, matching the timespan length
 ```python
 from site_calc_investment.models import ElectricityImport, ElectricityExport
 
-# Prices for 10 years (87,600 hourly values)
-prices_10y = generate_prices_with_escalation(
-    base_year_prices=[30.0] * 8760,
-    years=10,
-    escalation_rate=0.02  # 2% annual increase
-)
+# Prices for 10 years (87,600 hourly values), e.g. with 2% annual escalation
+base_year_prices = [30.0] * 8760
+prices_10y = [p * (1.02**year) for year in range(10) for p in base_year_prices]
 
 grid_import = ElectricityImport(
     name="GridImport",
     properties={
         "price": prices_10y,  # 87,600 values
-        "max_import": 8.0
-    }
+        "max_import": 8.0,
+    },
 )
 ```
 
+Market device properties accept only their documented fields (unknown fields
+raise validation errors):
+
+- `electricity_import`: `price`, `max_import`, optional `capacity_reservation`
+- `electricity_export`: `price`, `max_export`, optional `capacity_reservation`
+- `gas_import`: `price`, `max_import`
+- `heat_export`: `price`, `max_export`
+
 ### 4.3 Investment Parameters
 
-New model for financial analysis:
+Global financial parameters only:
 
 ```python
 from site_calc_investment.models import InvestmentParameters
 
 inv_params = InvestmentParameters(
     discount_rate=0.05,  # 5% discount rate for NPV
-    device_capital_costs={
-        "Battery1": 500000,    # €500k CAPEX
-        "CHP1": 1200000,       # €1.2M CAPEX
-        "PV1": 2000000         # €2M CAPEX
-    },
-    device_annual_opex={
-        "Battery1": 5000,      # €5k/year O&M
-        "CHP1": 30000,         # €30k/year O&M
-        "PV1": 20000           # €20k/year O&M
-    },
-    price_escalation_rate=0.02  # 2% annual inflation
+    project_lifetime_years=10,  # Required
 )
 ```
 
-### 4.4 Site Model
+Unknown fields are rejected with a validation error (`extra="forbid"`).
+Per-device CAPEX/OPEX lives on each device's `investment` block (Section
+4.2.1); optimizer-priced capacity costs are expressed as capacity
+reservations on the devices themselves (Section 4.4).
+
+### 4.4 Capacity Reservations
+
+A `CapacityReservation` puts a per-billing-period capacity limit and charge on
+a device flow. The watched flow can never exceed the reserved capacity `R`;
+every billing period intersecting the horizon is billed in full.
+
+Fields:
+
+| Field | Description |
+|-------|-------------|
+| `periods` | `"calendar_month"`, `"calendar_year"`, or `"horizon"` (one period covering the whole optimization) |
+| `tariffs` | Price menu (list of `CapacityTariff`); empty list declares an unpriced pure limit |
+| `reserved` | Fixed contracted capacity (MW); `None` lets the optimizer size `R` |
+| `min_reserved` / `max_reserved` | Bounds for an optimized `R` (MW); `max_reserved` defaults to the device's maximum flow |
+| `timezone` | IANA billing timezone (e.g. `"Europe/Prague"`) for calendar-period boundaries |
+
+Each `CapacityTariff` has a `name`, `reserved_price` (EUR per MW of `R` per
+period), `peak_price` (EUR per MW of the period's measured peak), and an
+optional `fixed_price` (EUR per period). Per billing period the charge is
+`fixed_price + reserved_price * R + peak_price * peak`. With several tariffs
+on one reservation, the cheapest tariff is assigned automatically each
+period. Optimizing `R` (i.e. `reserved=None`) requires at least one tariff
+with `reserved_price > 0`.
+
+Capacity reservations appear in three places:
+
+1. `capacity_reservation` on `electricity_import` / `electricity_export`
+   properties (e.g. monthly grid capacity tariffs)
+2. `power_sizing` / `capacity_sizing` on battery properties (investment
+   sizing; see Section 4.2.1)
+3. The `cz_distribution_import` device type, a convenience wrapper for the
+   Czech distribution tariff (see below)
+
+Example -- optimizer-sized battery power with a one-shot investment cost:
+
+```python
+from site_calc_investment.models import Battery
+
+battery = Battery(
+    name="BESS",
+    properties={
+        "capacity": 20.0,  # MWh
+        "max_power": 10.0,  # MW -- sizing ceiling
+        "efficiency": 0.90,
+        "power_sizing": {
+            "periods": "horizon",
+            "tariffs": [
+                # One-shot investment cost: 95,000 EUR per installed MW
+                {"name": "capex", "reserved_price": 95000, "peak_price": 0}
+            ],
+            # reserved omitted -> the optimizer sizes installed power
+        },
+    },
+)
+```
+
+Example -- Czech distribution-tariff import (2027 tariff structure):
+
+```python
+from site_calc_investment.models import CzDistributionImport
+
+grid = CzDistributionImport(
+    name="Grid",
+    properties={
+        "price": prices,  # EUR/MWh energy price profile
+        "max_import": 10.0,  # physical connection limit (MW)
+        "t1_reserved_price": 86000,  # EUR/MW/month
+        "t1_peak_price": 30000,  # EUR/MW/month
+        "t2_reserved_price": 65000,  # EUR/MW/month
+        "t2_peak_price": 95000,  # EUR/MW/month
+        "reserved_capacity": None,  # None -> optimizer sizes it
+        # "timezone": "Europe/Prague" (default)
+    },
+)
+```
+
+Billing is monthly; each month is billed by whichever of T1/T2 is cheaper
+(automatic assignment). On the wire the device is serialized as a plain
+`electricity_import` with the equivalent monthly `capacity_reservation`
+carrying the T1/T2 price menu.
+
+### 4.5 Site Model
 
 ```python
 from site_calc_investment.models import Site
@@ -238,15 +331,7 @@ from site_calc_investment.models import Site
 site = Site(
     site_id="investment_analysis_site",
     description="10-year capacity planning scenario",
-    devices=[
-        battery,
-        chp,
-        heat_accumulator,
-        pv,
-        grid_import,
-        grid_export,
-        gas_import
-    ]
+    devices=[battery, chp, heat_accumulator, pv, grid_import, grid_export, gas_import],
 )
 ```
 
@@ -258,20 +343,16 @@ site = Site(
 
 ```python
 from site_calc_investment import InvestmentClient
-from site_calc_investment.models import (
-    InvestmentPlanningRequest,
-    OptimizationConfig,
-    TimeSpan,
-    Resolution
-)
+from site_calc_investment.models import InvestmentPlanningRequest, OptimizationConfig, Resolution
+from site_calc_investment.models.requests import TimeSpanInvestment
 
 client = InvestmentClient(base_url="...", api_key="inv_...")
 
 # 10-year planning horizon
-timespan = TimeSpan(
+timespan = TimeSpanInvestment(
     start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
     intervals=87600,  # 10 years
-    resolution=Resolution.HOUR_1
+    resolution=Resolution.HOUR_1,
 )
 
 request = InvestmentPlanningRequest(
@@ -279,10 +360,10 @@ request = InvestmentPlanningRequest(
     timespan=timespan,
     investment_parameters=inv_params,
     optimization_config=OptimizationConfig(
-        objective="maximize_npv",
-        time_limit_seconds=3600,  # 1 hour timeout
-        relax_binary_variables=True
-    )
+        objective="maximize_profit",
+        time_limit_seconds=900,  # 15 minute maximum
+        relax_binary_variables=True,
+    ),
 )
 
 # Submit job
@@ -293,14 +374,21 @@ print(f"Job ID: {job.job_id}")
 result = client.wait_for_completion(
     job.job_id,
     poll_interval=30,  # Check every 30 seconds
-    timeout=7200       # 2 hour max wait
+    timeout=7200,  # 2 hour max wait
 )
 
-# Access investment metrics
-metrics = result.summary.investment_metrics
-print(f"NPV: €{metrics.npv:,.0f}")
-print(f"IRR: {metrics.irr*100:.2f}%")
-print(f"Payback: {metrics.payback_period_years:.1f} years")
+# Compute investment metrics client-side from the annual aggregates
+from site_calc_investment.analysis import calculate_investment_metrics
+
+metrics = calculate_investment_metrics(
+    annual_revenues=result.investment_metrics.annual_revenue_by_year,
+    annual_costs=result.investment_metrics.annual_costs_by_year,
+    discount_rate=0.05,
+    devices=site.devices,  # sums the devices' investment blocks
+)
+print(f"NPV: €{metrics['npv']:,.0f}")
+print(f"IRR: {metrics['irr'] * 100:.2f}%")
+print(f"Payback: {metrics['payback_period_years']:.1f} years")
 ```
 
 ### 5.2 Scenario Comparison
@@ -337,24 +425,51 @@ print(comparison)  # DataFrame with NPV, IRR, costs, revenues
 
 ## 6. Financial Analysis Helpers
 
-### 6.1 NPV Calculation
+### 6.1 All-in-One Metrics (recommended)
+
+`calculate_investment_metrics` assembles NPV, IRR, and payback from the
+annual aggregates in the optimization result plus the devices' `investment`
+blocks:
+
+```python
+from site_calc_investment.analysis import calculate_investment_metrics
+
+metrics = calculate_investment_metrics(
+    annual_revenues=result.investment_metrics.annual_revenue_by_year,
+    annual_costs=result.investment_metrics.annual_costs_by_year,
+    discount_rate=0.05,
+    devices=site.devices,
+)
+# Returns dict with: npv, irr, payback_period_years,
+#                    initial_investment, annual_net_cash_flows
+```
+
+It sums `capital_cost` into the initial investment and subtracts `annual_opex`
+from each year's net cash flow.
+
+**Do not double count:** `annual_costs_by_year` already includes
+capacity-reservation charges (e.g. battery `power_sizing` payments or grid
+tariff payments). Do not also model a cost carried by a sizing reservation as
+`capital_cost` on the device.
+
+### 6.2 NPV Calculation
 
 ```python
 from site_calc_investment.analysis import calculate_npv
 
 # Annual cash flows from optimization result
-annual_cash_flows = result.summary.investment_metrics.annual_revenue_by_year
+annual_cash_flows = result.investment_metrics.annual_revenue_by_year
 
 # Calculate NPV with custom discount rate
 npv = calculate_npv(
     cash_flows=annual_cash_flows,
     discount_rate=0.05,
-    initial_investment=-1500000  # €1.5M CAPEX
+    initial_investment=-1500000,  # €1.5M CAPEX
 )
 print(f"NPV: €{npv:,.0f}")
 ```
 
-### 6.2 IRR Calculation
+### 6.3 IRR Calculation
 
 ```python
 from site_calc_investment.analysis import calculate_irr
@@ -363,10 +478,10 @@ from site_calc_investment.analysis import calculate_irr
 cash_flows = [-1500000] + annual_cash_flows  # Prepend CAPEX
 
 irr = calculate_irr(cash_flows)
-print(f"IRR: {irr*100:.2f}%")
+print(f"IRR: {irr * 100:.2f}%")
 ```
 
-### 6.3 Payback Period
+### 6.4 Payback Period
 
 ```python
 from site_calc_investment.analysis import calculate_payback_period
@@ -375,16 +490,14 @@ payback = calculate_payback_period(cash_flows)
 print(f"Payback: {payback:.1f} years")
 ```
 
-### 6.4 Annual Aggregation
+### 6.5 Annual Aggregation
 
 ```python
 from site_calc_investment.analysis import aggregate_annual
 
 # Extract annual revenue from hourly schedule
 annual_revenues = aggregate_annual(
-    hourly_values=result.sites["site1"].grid_flows["export"],
-    prices=grid_export_prices,
-    years=10
+    hourly_values=result.sites["site1"].grid_flows["export"], prices=grid_export_prices, years=10
 )
 # Returns: [year1_revenue, year2_revenue, ..., year10_revenue]
 ```
@@ -398,22 +511,32 @@ annual_revenues = aggregate_annual(
 ```python
 {
     "investment_metrics": {
-        "total_revenue_10y": 5000000.0,      # Total revenue over horizon
-        "total_costs_10y": 3000000.0,        # Total costs (fuel, O&M)
-        "npv": 1250000.0,                    # Net present value
-        "irr": 0.12,                         # Internal rate of return (12%)
-        "payback_period_years": 6.2,         # Simple payback
-        "annual_revenue_by_year": [          # Year-by-year breakdown
-            450000, 465000, 480000, 495000, 510000,
-            525000, 540000, 555000, 570000, 585000
+        "total_revenue_10y": 5175000.0,  # Total revenue over horizon (sum of annual_revenue_by_year)
+        "total_costs_10y": 2950000.0,  # Total costs incl. capacity charges (sum of annual_costs_by_year)
+        "npv": None,  # Calculated client-side
+        "irr": None,  # Calculated client-side
+        "payback_period_years": None,  # Calculated client-side
+        "annual_revenue_by_year": [  # Year-by-year breakdown
+            450000,
+            465000,
+            480000,
+            495000,
+            510000,
+            525000,
+            540000,
+            555000,
+            570000,
+            585000,
         ],
-        "annual_costs_by_year": [
-            250000, 260000, 270000, 280000, 290000,
-            300000, 310000, 320000, 330000, 340000
-        ]
+        "annual_costs_by_year": [250000, 260000, 270000, 280000, 290000, 300000, 310000, 320000, 330000, 340000],
     }
 }
 ```
+
+`annual_costs_by_year` **includes capacity-reservation charges** (sizing
+payments and grid capacity tariffs). NPV, IRR, and payback are computed
+client-side from these arrays with `calculate_investment_metrics`
+(Section 6.1), which also folds in the devices' `investment` blocks.
 
 ### 7.2 Device Schedule (87,600 intervals)
 
@@ -423,31 +546,62 @@ annual_revenues = aggregate_annual(
         "flows": {
             "electricity": [2.0, -1.5, 0.5, ...]  # 87,600 hourly values (MW)
         },
-        "soc": [0.5, 0.48, 0.47, ...],            # 87,600 values (0-1)
+        "soc": [0.5, 0.48, 0.47, ...],  # 87,600 values (0-1)
         # No ancillary_reservations field
     },
     "CHP1": {
         "flows": {
-            "gas": [-8.0, -4.0, -6.0, ...],       # 87,600 values (MW)
-            "electricity": [3.0, 1.5, 2.25, ...], # Continuous operation
-            "heat": [4.0, 2.0, 3.0, ...]
+            "gas": [-8.0, -4.0, -6.0, ...],  # 87,600 values (MW)
+            "electricity": [3.0, 1.5, 2.25, ...],  # Continuous operation
+            "heat": [4.0, 2.0, 3.0, ...],
         }
         # No binary_status (treated as continuous)
+    },
+}
+```
+
+### 7.3 Capacity Reservation Results
+
+Devices with capacity reservations (a `capacity_reservation` property,
+battery `power_sizing`/`capacity_sizing`, or a `cz_distribution_import`
+device) carry a `capacity_reservations` list on their schedule:
+
+```python
+{
+    "Grid": {
+        "flows": {"electricity": [...]},
+        "capacity_reservations": [
+            {
+                "kind": "capacity_reservation",  # or power_sizing | capacity_sizing
+                "material": "electricity",
+                "reserved": 4.2,  # contracted or optimizer-sized (MW; MWh for capacity_sizing)
+                "total_payment": 391000.0,  # sum of all period payments (EUR)
+                "periods": [
+                    {
+                        "start": "2026-01-01T00:00:00+01:00",
+                        "end": "2026-02-01T00:00:00+01:00",
+                        "peak": 3.9,  # measured peak in the period (MW)
+                        "tariff": "T1",  # selected tariff (None for unpriced limits)
+                        "payment": 32500.0,  # charge billed for this period (EUR)
+                    },
+                    ...,
+                ],
+            }
+        ],
     }
 }
 ```
+
+For sizing reservations (`power_sizing`, `capacity_sizing`), `reserved` is
+the optimizer's investment decision: the installed power (MW) or energy
+capacity (MWh) it chose to build.
 
 ---
 
 ## 8. Error Handling
 
 ```python
-from site_calc_investment.exceptions import (
-    ApiError,
-    ValidationError,
-    ForbiddenFeatureError,
-    LimitExceededError
-)
+from site_calc_investment.exceptions import ApiError, ValidationError, ForbiddenFeatureError, LimitExceededError
 
 try:
     result = client.create_planning_job(request)
@@ -470,29 +624,31 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from site_calc_investment import InvestmentClient
 from site_calc_investment.models import (
-    TimeSpan, Resolution, Site, Battery, ElectricityImport, ElectricityExport,
-    InvestmentPlanningRequest, InvestmentParameters, OptimizationConfig
+    Resolution,
+    Site,
+    Battery,
+    ElectricityImport,
+    ElectricityExport,
+    InvestmentPlanningRequest,
+    InvestmentParameters,
+    OptimizationConfig,
 )
-from site_calc_investment.analysis import compare_scenarios
+from site_calc_investment.models.requests import TimeSpanInvestment
+from site_calc_investment.analysis import calculate_investment_metrics
 
 # Initialize client
-client = InvestmentClient(
-    base_url="https://api.site-calc.example.com",
-    api_key="inv_9876543210fedcba"
-)
+client = InvestmentClient(base_url="https://api.site-calc.example.com", api_key="inv_9876543210fedcba")
 
 # 10-year horizon
-timespan = TimeSpan(
-    start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
-    intervals=87600,
-    resolution=Resolution.HOUR_1
+timespan = TimeSpanInvestment(
+    start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")), intervals=87600, resolution=Resolution.HOUR_1
 )
 
 # Generate prices (2% annual escalation)
-base_prices = [30.0 + 10*abs(h-12)/12 for h in range(24)] * 365  # Daily pattern
+base_prices = [30.0 + 10 * abs(h - 12) / 12 for h in range(24)] * 365  # Daily pattern
 prices_10y = []
 for year in range(10):
-    year_prices = [p * (1.02 ** year) for p in base_prices]
+    year_prices = [p * (1.02**year) for p in base_prices]
     prices_10y.extend(year_prices)
 
 # Test three battery sizes
@@ -504,54 +660,63 @@ for capacity in [5.0, 10.0, 15.0]:
             "capacity": capacity,
             "max_power": capacity / 2,  # 2-hour discharge
             "efficiency": 0.90,
-            "initial_soc": 0.5
-        }
+            "initial_soc": 0.5,
+        },
+        investment={
+            "capital_cost": capacity * 100000,  # €100k/MWh
+            "annual_opex": capacity * 1000,  # €1k/MWh/year
+        },
     )
 
     site = Site(
-        site_id=f"battery_{capacity}mw",
+        site_id=f"battery_{capacity}mwh",
         devices=[
             battery,
             ElectricityImport(name="GridImport", properties={"price": prices_10y, "max_import": 20.0}),
-            ElectricityExport(name="GridExport", properties={"price": prices_10y, "max_export": 20.0})
-        ]
+            ElectricityExport(name="GridExport", properties={"price": prices_10y, "max_export": 20.0}),
+        ],
     )
 
-    inv_params = InvestmentParameters(
-        discount_rate=0.05,
-        device_capital_costs={"Battery1": capacity * 100000},  # €100k/MW
-        device_annual_opex={"Battery1": capacity * 1000}       # €1k/MW/year
-    )
+    inv_params = InvestmentParameters(discount_rate=0.05, project_lifetime_years=10)
 
     request = InvestmentPlanningRequest(
         sites=[site],
         timespan=timespan,
         investment_parameters=inv_params,
-        optimization_config=OptimizationConfig(
-            objective="maximize_npv",
-            time_limit_seconds=3600
-        )
+        optimization_config=OptimizationConfig(objective="maximize_profit", time_limit_seconds=900),
     )
 
     job = client.create_planning_job(request)
     result = client.wait_for_completion(job.job_id, poll_interval=30, timeout=7200)
-    scenarios.append((f"{capacity} MW", result))
+
+    metrics = calculate_investment_metrics(
+        annual_revenues=result.investment_metrics.annual_revenue_by_year,
+        annual_costs=result.investment_metrics.annual_costs_by_year,
+        discount_rate=0.05,
+        devices=site.devices,
+    )
+    scenarios.append((f"{capacity} MWh", metrics))
 
 # Compare scenarios
-comparison = compare_scenarios(
-    [s[1] for s in scenarios],
-    names=[s[0] for s in scenarios]
-)
-
 print("\n=== Battery Sizing Comparison ===")
-print(comparison)
+for name, metrics in scenarios:
+    print(
+        f"{name}: NPV €{metrics['npv']:,.0f}, "
+        f"IRR {metrics['irr'] * 100:.2f}%, "
+        f"payback {metrics['payback_period_years']:.1f}y"
+    )
 
 # Find optimal size
-best = max(scenarios, key=lambda s: s[1].summary.investment_metrics.npv)
+best = max(scenarios, key=lambda s: s[1]["npv"])
 print(f"\nOptimal size: {best[0]}")
-print(f"NPV: €{best[1].summary.investment_metrics.npv:,.0f}")
-print(f"IRR: {best[1].summary.investment_metrics.irr*100:.2f}%")
 ```
+
+Alternatively, let the optimizer size the battery itself in a single run:
+give the battery a `power_sizing` / `capacity_sizing` reservation with the
+investment cost as the tariff (Section 4.4) and read the sizing decision from
+`capacity_reservations` in the result (Section 7.3). Costs carried by sizing
+reservations are already part of `annual_costs_by_year` -- do not repeat them
+in the `investment` block.
 
 ---
 
@@ -590,13 +755,10 @@ timespan.intervals == 87600
 
 ### 11.1 Solve Times
 
-Typical solve times for 10-year horizon:
-
-| Complexity | Solve Time |
-|------------|------------|
-| Simple (battery only) | 5-15 min |
-| Medium (battery + CHP) | 15-45 min |
-| Complex (multi-site, many devices) | 30-60 min |
+The solver time limit is capped at 900 seconds (15 minutes) per job. Solve
+time grows with horizon length, device count, and the number of capacity
+reservations. Keeping `relax_binary_variables=True` (the default) is what
+makes 10-year horizons tractable within the limit.
 
 ### 11.2 Binary Variable Relaxation
 
@@ -632,18 +794,23 @@ To make 10-year problems tractable:
 
 ### 12.3 Sensitivity Analysis
 
+Because NPV is computed client-side, discount-rate sensitivity needs no
+re-optimization -- run the job once and recompute:
+
 ```python
-from site_calc_investment.analysis import sensitivity_analysis
+from site_calc_investment.analysis import calculate_investment_metrics
 
-# Test NPV sensitivity to discount rate
+# Test NPV sensitivity to discount rate (single optimization run)
 discount_rates = [0.03, 0.04, 0.05, 0.06, 0.07]
-npvs = []
-
-for rate in discount_rates:
-    inv_params.discount_rate = rate
-    job = client.create_planning_job(request)
-    result = client.wait_for_completion(job.job_id)
-    npvs.append(result.summary.investment_metrics.npv)
+npvs = [
+    calculate_investment_metrics(
+        annual_revenues=result.investment_metrics.annual_revenue_by_year,
+        annual_costs=result.investment_metrics.annual_costs_by_year,
+        discount_rate=rate,
+        devices=site.devices,
+    )["npv"]
+    for rate in discount_rates
+]
 
 # Plot NPV vs. discount rate
 plot_sensitivity(discount_rates, npvs, xlabel="Discount Rate", ylabel="NPV (€)")
@@ -658,7 +825,7 @@ plot_sensitivity(discount_rates, npvs, xlabel="Discount Rate", ylabel="NPV (€)
 | Max intervals | 100,000 |
 | Max sites | 50 |
 | Max devices per site | 30 |
-| Request timeout | 3600 seconds |
+| Solver time limit | 900 seconds (15 minutes) |
 | Request size | 50 MB |
 | Resolution | 1-hour only |
 
@@ -677,15 +844,19 @@ plot_sensitivity(discount_rates, npvs, xlabel="Discount Rate", ylabel="NPV (€)
 ### 14.2 Added Features
 
 - ✅ Investment metrics (NPV, IRR, payback)
-- ✅ Financial analysis helpers
+- ✅ Financial analysis helpers (`calculate_investment_metrics` and friends)
+- ✅ Per-device `investment` blocks for client-side CAPEX/OPEX accounting
+- ✅ Capacity reservations: per-period capacity limits and charges with
+  automatic cheapest-tariff assignment
+- ✅ Battery `power_sizing` / `capacity_sizing` (optimizer-sized investment)
+- ✅ Czech distribution-tariff import device (`cz_distribution_import`)
 - ✅ Scenario comparison utilities
 - ✅ Annual aggregation functions
-- ✅ Price escalation modeling
 
 ### 14.3 Modified Behavior
 
 - CHP `is_binary` ignored (always continuous)
-- Longer timeouts (3600s vs 300s)
+- Higher solver time limit cap (900 seconds maximum; the default remains 300 seconds)
 - Longer default poll intervals (30s vs 5s)
 
 ---
@@ -697,11 +868,13 @@ Coming from operational client:
 ```python
 # Operational
 from site_calc_operational import OperationalClient
+
 client = OperationalClient(api_key="op_...")
 # 296 intervals, ANS optimization, 15-min resolution
 
 # Investment
 from site_calc_investment import InvestmentClient
+
 client = InvestmentClient(api_key="inv_...")
 # 100,000 intervals, NO ANS, 1-hour only
 ```

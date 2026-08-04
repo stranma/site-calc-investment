@@ -15,22 +15,25 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from site_calc_investment import InvestmentClient
 from site_calc_investment.models import (
-    Resolution, Site, Battery, ElectricityImport, ElectricityExport,
-    InvestmentPlanningRequest, InvestmentParameters, OptimizationConfig
+    Resolution,
+    Site,
+    Battery,
+    ElectricityImport,
+    ElectricityExport,
+    InvestmentPlanningRequest,
+    InvestmentParameters,
+    OptimizationConfig,
 )
 from site_calc_investment.models.requests import TimeSpanInvestment
 
 # Initialize client
-client = InvestmentClient(
-    base_url="https://api.site-calc.example.com",
-    api_key="inv_your_api_key_here"
-)
+client = InvestmentClient(base_url="https://api.site-calc.example.com", api_key="inv_your_api_key_here")
 
 # Create 1-week planning horizon (1-hour resolution)
 timespan = TimeSpanInvestment(
     start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
     intervals=168,  # 1 week = 7 days × 24 hours
-    resolution=Resolution.HOUR_1
+    resolution=Resolution.HOUR_1,
 )
 
 # Generate hourly prices (example: day/night pattern)
@@ -39,32 +42,20 @@ prices = [30.0 if h % 24 < 6 else 80.0 if 8 <= h % 24 < 20 else 50.0 for h in ra
 # Define devices (NO ancillary_services field)
 battery = Battery(
     name="Battery1",
-    properties={
-        "capacity": 10.0,
-        "max_power": 5.0,
-        "efficiency": 0.90,
-        "initial_soc": 0.5
-    }
+    properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.90, "initial_soc": 0.5},
+    investment={"capital_cost": 500000, "annual_opex": 5000},  # For client-side NPV
 )
 
-grid_import = ElectricityImport(
-    name="GridImport",
-    properties={"price": prices, "max_import": 10.0}
-)
+grid_import = ElectricityImport(name="GridImport", properties={"price": prices, "max_import": 10.0})
 
-grid_export = ElectricityExport(
-    name="GridExport",
-    properties={"price": prices, "max_export": 10.0}
-)
+grid_export = ElectricityExport(name="GridExport", properties={"price": prices, "max_export": 10.0})
 
 site = Site(site_id="investment_site", devices=[battery, grid_import, grid_export])
 
-# Investment parameters
+# Global investment parameters (per-device costs live on the devices)
 inv_params = InvestmentParameters(
     discount_rate=0.05,
-    project_lifetime_years=10,                  # Required field
-    device_capital_costs={"Battery1": 500000},  # €500k CAPEX
-    device_annual_opex={"Battery1": 5000}       # €5k/year O&M
+    project_lifetime_years=10,  # Required field
 )
 
 # Create and submit optimization request
@@ -74,8 +65,8 @@ request = InvestmentPlanningRequest(
     investment_parameters=inv_params,
     optimization_config=OptimizationConfig(
         objective="maximize_profit",  # Options: maximize_profit, minimize_cost, maximize_self_consumption
-        time_limit_seconds=300        # Max 900 seconds (15 min)
-    )
+        time_limit_seconds=300,  # Max 900 seconds (15 min)
+    ),
 )
 
 job = client.create_planning_job(request)
@@ -90,6 +81,10 @@ print(f"Profit: €{result.summary.expected_profit:,.2f}")
 
 - ✅ Long-term capacity planning (1-10 years)
 - ✅ Investment ROI analysis (NPV, IRR, payback)
+- ✅ Per-device investment costs (capital_cost / annual_opex) for client-side NPV
+- ✅ Capacity reservations: per-period capacity limits and charges with automatic cheapest-tariff assignment
+- ✅ BESS investment sizing: optimizer-sized battery power (MW) and energy capacity (MWh)
+- ✅ Czech distribution-tariff import device (monthly T1/T2 capacity tariff, 2027 structure)
 - ✅ Scenario comparison utilities
 - ✅ Financial analysis helpers
 - ✅ 1-hour resolution optimization
@@ -110,7 +105,7 @@ print(f"Profit: €{result.summary.expected_profit:,.2f}")
 
 ## Supported Devices
 
-- Battery (NO ANS)
+- Battery (NO ANS; optional `power_sizing` / `capacity_sizing` reservations let the optimizer size installed MW / MWh)
 - CHP - Combined Heat and Power (continuous operation)
 - Heat Accumulator
 - Photovoltaic: `photovoltaic_nonsteerable` (exact profile) / `photovoltaic_steerable` (curtailable up to a max-power profile)
@@ -118,9 +113,12 @@ print(f"Profit: €{result.summary.expected_profit:,.2f}")
 - Max-Power Production / Consumption (steerable in [0, max] at a linear EUR/MWh cost or value)
 - Heat Demand
 - Electricity Demand
-- Electricity Import/Export (market interface)
+- Electricity Import/Export (market interface; optional `capacity_reservation` for per-period grid capacity tariffs)
+- Czech Distribution Import (`cz_distribution_import`: electricity import billed under the Czech monthly T1/T2 capacity tariff)
 - Gas Import (market interface)
 - Heat Export (market interface)
+
+Every device also accepts an optional `investment` block (`{"capital_cost": EUR, "annual_opex": EUR/year}`) used only for client-side NPV/IRR analysis -- it is stripped from the API payload.
 
 ## Job Management
 
@@ -150,27 +148,30 @@ print(f"Cancelled {result['cancelled_count']} jobs")
 
 ```python
 from site_calc_investment.analysis import (
+    calculate_investment_metrics,
     calculate_npv,
     calculate_irr,
     calculate_payback_period,
-    compare_scenarios
+    compare_scenarios,
 )
 
-# NPV calculation
-npv = calculate_npv(
-    cash_flows=annual_revenues,
+# All-in-one: NPV/IRR/payback from annual aggregates + device investment blocks
+metrics = calculate_investment_metrics(
+    annual_revenues=result.investment_metrics.annual_revenue_by_year,
+    annual_costs=result.investment_metrics.annual_costs_by_year,  # already includes capacity-reservation charges
     discount_rate=0.05,
-    initial_investment=-1500000
+    devices=site.devices,
 )
+print(metrics["npv"], metrics["irr"], metrics["payback_period_years"])
+
+# NPV calculation
+npv = calculate_npv(cash_flows=annual_revenues, discount_rate=0.05, initial_investment=-1500000)
 
 # IRR calculation
 irr = calculate_irr([-1500000] + annual_revenues)
 
 # Scenario comparison
-comparison = compare_scenarios(
-    [result_5mw, result_10mw, result_15mw],
-    names=["5 MW", "10 MW", "15 MW"]
-)
+comparison = compare_scenarios([result_5mw, result_10mw, result_15mw], names=["5 MW", "10 MW", "15 MW"])
 print(comparison)  # DataFrame with NPV, IRR, costs, revenues
 ```
 
@@ -258,26 +259,27 @@ For production, deploy the server to a publicly accessible host instead.
 > **Note:** ChatGPT shows tool call details and may require manual confirmation for actions.
 > The `save_data_file` tool requires the server to have local filesystem access.
 
-### Tools (16)
+### Tools (17)
 
 | Tool | Description |
 |------|-------------|
 | `get_version` | Get server and package version info |
 | `create_scenario` | Create a new draft scenario |
-| `add_device` | Add a device (battery, CHP, PV, etc.) |
+| `add_device` | Add a device (battery, CHP, PV, etc.), optionally with an `investment` cost block |
 | `set_timespan` | Set optimization time horizon |
-| `set_investment_params` | Set financial parameters (NPV, IRR) |
+| `set_investment_params` | Set global financial parameters (discount rate, project lifetime) |
 | `review_scenario` | Review scenario before submission |
 | `remove_device` | Remove a device |
 | `delete_scenario` | Delete a scenario |
 | `list_scenarios` | List all draft scenarios |
 | `submit_scenario` | Submit for optimization |
 | `get_job_status` | Check job progress |
-| `get_job_result` | Get optimization results |
+| `get_job_result` | Get optimization results (incl. capacity reservation summaries) |
 | `cancel_job` | Cancel a job |
 | `list_jobs` | List all jobs |
 | `get_device_schema` | Get device property schema |
 | `save_data_file` | Save generated data as CSV |
+| `fetch_url` | Download a file (e.g. CSV price data) from a URL |
 
 `save_data_file` lets the LLM write generated data (price arrays, demand profiles) to local CSV files, which can then be referenced in `add_device` properties.
 

@@ -7,6 +7,7 @@ __version__ = "1.2.9"
 
 from site_calc_investment.analysis import (
     aggregate_annual,
+    calculate_investment_metrics,
     calculate_irr,
     calculate_npv,
     calculate_payback_period,
@@ -28,6 +29,12 @@ from site_calc_investment.models import (
     CHP,
     # Device models (NO ancillary_services)
     Battery,
+    CapacityReservation,
+    CapacityReservationResult,
+    # Capacity reservations and investment accounting
+    CapacityTariff,
+    CzDistributionImport,
+    DeviceInvestment,
     ElectricityDemand,
     ElectricityExport,
     ElectricityImport,
@@ -50,6 +57,7 @@ from site_calc_investment.models import (
     OptimizationConfig,
     PhotovoltaicNonSteerable,
     PhotovoltaicSteerable,
+    ReservationPeriod,
     Resolution,
     Schedule,
     # Site and configuration
@@ -81,6 +89,11 @@ __all__ = [
     "ElectricityExport",
     "GasImport",
     "HeatExport",
+    "CzDistributionImport",
+    # Capacity reservations and investment accounting
+    "CapacityTariff",
+    "CapacityReservation",
+    "DeviceInvestment",
     # Configuration
     "Site",
     "Schedule",
@@ -91,10 +104,13 @@ __all__ = [
     "Job",
     "InvestmentPlanningResponse",
     "InvestmentMetrics",
+    "ReservationPeriod",
+    "CapacityReservationResult",
     # Analysis
     "calculate_npv",
     "calculate_irr",
     "calculate_payback_period",
+    "calculate_investment_metrics",
     "aggregate_annual",
     "compare_scenarios",
     # Exceptions

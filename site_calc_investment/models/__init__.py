@@ -1,5 +1,10 @@
 """Data models for investment client."""
 
+from site_calc_investment.models.capacity import (
+    CapacityReservation,
+    CapacityTariff,
+    DeviceInvestment,
+)
 from site_calc_investment.models.common import Location, Resolution, TimeSpan
 from site_calc_investment.models.devices import (
     CHP,
@@ -8,8 +13,11 @@ from site_calc_investment.models.devices import (
     # Properties
     BatteryProperties,
     CHPProperties,
+    CzDistributionImport,
+    CzDistributionImportProperties,
     DemandProperties,
     Device,
+    DeviceBase,
     ElectricityDemand,
     ElectricityExport,
     ElectricityImport,
@@ -17,10 +25,12 @@ from site_calc_investment.models.devices import (
     FixedProduction,
     FixedProfileProperties,
     GasImport,
+    GasImportProperties,
     HeatAccumulator,
     HeatAccumulatorProperties,
     HeatDemand,
     HeatExport,
+    HeatExportProperties,
     MarketExportProperties,
     MarketImportProperties,
     MaxPowerConsumption,
@@ -41,10 +51,12 @@ from site_calc_investment.models.requests import (
     TimeSpanInvestment,
 )
 from site_calc_investment.models.responses import (
+    CapacityReservationResult,
     DeviceSchedule,
     InvestmentMetrics,
     InvestmentPlanningResponse,
     Job,
+    ReservationPeriod,
     SiteResult,
     Summary,
 )
@@ -54,6 +66,10 @@ __all__ = [
     "TimeSpan",
     "Resolution",
     "Location",
+    # Capacity reservations and investment accounting
+    "CapacityTariff",
+    "CapacityReservation",
+    "DeviceInvestment",
     # Device Properties
     "BatteryProperties",
     "CHPProperties",
@@ -65,9 +81,13 @@ __all__ = [
     "DemandProperties",
     "MarketImportProperties",
     "MarketExportProperties",
+    "GasImportProperties",
+    "HeatExportProperties",
+    "CzDistributionImportProperties",
     # Schedule
     "Schedule",
     # Devices
+    "DeviceBase",
     "Battery",
     "CHP",
     "HeatAccumulator",
@@ -83,6 +103,7 @@ __all__ = [
     "ElectricityExport",
     "GasImport",
     "HeatExport",
+    "CzDistributionImport",
     "Device",
     # Request models
     "Site",
@@ -93,6 +114,8 @@ __all__ = [
     # Response models
     "Job",
     "DeviceSchedule",
+    "ReservationPeriod",
+    "CapacityReservationResult",
     "SiteResult",
     "InvestmentMetrics",
     "Summary",

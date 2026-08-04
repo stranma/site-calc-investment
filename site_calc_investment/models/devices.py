@@ -1,14 +1,18 @@
 """Device models for investment client (NO ancillary services)."""
 
-from typing import List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from site_calc_investment.models.capacity import CapacityReservation, CapacityTariff, DeviceInvestment
 
 # Device Properties Models
 
 
 class BatteryProperties(BaseModel):
     """Battery storage properties."""
+
+    model_config = ConfigDict(extra="forbid")
 
     capacity: float = Field(..., gt=0, description="Energy capacity (MWh)")
     max_power: float = Field(..., gt=0, description="Power rating for charge/discharge (MW)")
@@ -25,6 +29,53 @@ class BatteryProperties(BaseModel):
         le=1,
         description="Target SOC fraction at anchor points (0-1)",
     )
+    power_sizing: Optional[CapacityReservation] = Field(
+        None,
+        description=(
+            "Let the optimizer size installed power (MW). Use periods='horizon' with "
+            "tariffs as investment cost tiers (EUR/MW); max_power is the sizing ceiling"
+        ),
+    )
+    capacity_sizing: Optional[CapacityReservation] = Field(
+        None,
+        description=(
+            "Let the optimizer size energy capacity (MWh); capacity is the sizing "
+            "ceiling. The full reservation form is accepted (calendar periods, tariff "
+            "menus, bounds, timezone); periods='horizon' with reserved_price tiers "
+            "(EUR/MWh) is the one-shot CAPEX case. An optimizer-sized capacity must "
+            "start empty: initial_soc defaults to 0 and must not be set above 0 "
+            "unless 'reserved' fixes the capacity"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_capacity_sizing(self) -> "BatteryProperties":
+        """Enforce the server's rules for capacity_sizing.
+
+        An optimizer-sized energy capacity must start empty: every built
+        MWh would otherwise arrive holding ``initial_soc`` MWh of free
+        energy, distorting the sizing. When ``initial_soc`` is not set
+        explicitly, sizing runs default it to 0 (the stock 0.5 default
+        only makes sense for a fixed capacity). SOC anchor points are
+        incompatible with capacity_sizing (anchors target a fraction of
+        the ceiling, which may exceed the built capacity).
+        """
+        cs = self.capacity_sizing
+        if cs is not None:
+            if self.soc_anchor_interval_hours is not None:
+                raise ValueError(
+                    "capacity_sizing cannot be combined with SOC anchor points (soc_anchor_interval_hours)"
+                )
+            if cs.reserved is None:
+                if "initial_soc" not in self.model_fields_set:
+                    self.initial_soc = 0.0
+                elif self.initial_soc > 0:
+                    raise ValueError(
+                        "initial_soc > 0 cannot be combined with an optimizer-sized "
+                        "capacity_sizing (no fixed 'reserved' value); use initial_soc=0 "
+                        "or fix the reserved capacity"
+                    )
+        return self
 
 
 class CHPProperties(BaseModel):
@@ -137,21 +188,104 @@ class DemandProperties(BaseModel):
 
 
 class MarketImportProperties(BaseModel):
-    """Market import device properties (electricity or gas)."""
+    """Electricity import device properties."""
+
+    model_config = ConfigDict(extra="forbid")
 
     price: List[float] = Field(..., description="Price profile (EUR/MWh)")
     max_import: float = Field(..., gt=0, description="Maximum import capacity (MW)")
-    max_import_unit_cost: Optional[float] = Field(
-        None, ge=0, description="Optional reserved capacity cost (EUR/MW/year)"
+    capacity_reservation: Optional[CapacityReservation] = Field(
+        None, description="Optional per-period capacity limit and charge on the import flow"
     )
 
 
 class MarketExportProperties(BaseModel):
-    """Market export device properties (electricity or heat)."""
+    """Electricity export device properties."""
+
+    model_config = ConfigDict(extra="forbid")
 
     price: List[float] = Field(..., description="Price profile (EUR/MWh)")
     max_export: float = Field(..., gt=0, description="Maximum export capacity (MW)")
-    max_export_unit_cost: Optional[float] = Field(None, ge=0, description="Optional export capacity cost (EUR/MW/year)")
+    capacity_reservation: Optional[CapacityReservation] = Field(
+        None, description="Optional per-period capacity limit and charge on the export flow"
+    )
+
+
+class GasImportProperties(BaseModel):
+    """Gas import device properties."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    price: List[float] = Field(..., description="Price profile (EUR/MWh)")
+    max_import: float = Field(..., gt=0, description="Maximum import capacity (MW)")
+
+
+class HeatExportProperties(BaseModel):
+    """Heat export device properties."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    price: List[float] = Field(..., description="Price profile (EUR/MWh)")
+    max_export: float = Field(..., gt=0, description="Maximum export capacity (MW)")
+
+
+class CzDistributionImportProperties(BaseModel):
+    """Czech distribution-tariff electricity import (2027 tariff structure).
+
+    Monthly billing with two tariffs T1/T2; each month is billed by
+    whichever tariff is cheaper (automatic assignment). The reserved
+    capacity is either contracted (``reserved_capacity`` set) or sized by
+    the optimizer. All prices are user-supplied.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    price: List[float] = Field(
+        ..., description="Energy price profile (EUR/MWh): commodity plus regulated per-MWh components"
+    )
+    max_import: float = Field(..., gt=0, description="Physical connection limit (MW)")
+    t1_reserved_price: float = Field(..., ge=0, description="T1: EUR per MW of reserved capacity per month")
+    t1_peak_price: float = Field(..., ge=0, description="T1: EUR per MW of the monthly peak")
+    t2_reserved_price: float = Field(..., ge=0, description="T2: EUR per MW of reserved capacity per month")
+    t2_peak_price: float = Field(..., ge=0, description="T2: EUR per MW of the monthly peak")
+    reserved_capacity: Optional[float] = Field(
+        None, ge=0, description="Contracted reserved capacity (MW); None lets the optimizer size it"
+    )
+    min_reserved: float = Field(0.0, ge=0, description="Lower bound for an optimized reserved capacity (MW)")
+    max_reserved: Optional[float] = Field(
+        None, gt=0, description="Upper bound for an optimized reserved capacity (MW); defaults to max_import"
+    )
+    timezone: str = Field("Europe/Prague", description="IANA billing timezone")
+
+    def to_capacity_reservation(self) -> CapacityReservation:
+        """Build the equivalent generic capacity reservation (monthly, T1/T2 menu)."""
+        return CapacityReservation(
+            periods="calendar_month",
+            tariffs=[
+                CapacityTariff(
+                    name="T1",
+                    reserved_price=self.t1_reserved_price,
+                    peak_price=self.t1_peak_price,
+                    fixed_price=0.0,
+                ),
+                CapacityTariff(
+                    name="T2",
+                    reserved_price=self.t2_reserved_price,
+                    peak_price=self.t2_peak_price,
+                    fixed_price=0.0,
+                ),
+            ],
+            reserved=self.reserved_capacity,
+            min_reserved=self.min_reserved,
+            max_reserved=self.max_reserved,
+            timezone=self.timezone,
+        )
+
+    @model_validator(mode="after")
+    def validate_tariff_consistency(self) -> "CzDistributionImportProperties":
+        """Run the full reservation validation on the equivalent generic form."""
+        self.to_capacity_reservation()
+        return self
 
 
 # Schedule Model
@@ -208,139 +342,145 @@ class Schedule(BaseModel):
 # Device Models
 
 
-class Battery(BaseModel):
-    """Battery storage device (NO ancillary services for investment client)."""
+class DeviceBase(BaseModel):
+    """Common device fields: identity and client-side investment accounting."""
 
     name: str = Field(..., description="Unique device identifier")
+    investment: Optional[DeviceInvestment] = Field(
+        None,
+        description="Fixed CAPEX/OPEX for client-side NPV analysis; stripped from the API payload",
+    )
+
+
+class Battery(DeviceBase):
+    """Battery storage device (NO ancillary services for investment client)."""
+
     type: Literal["battery"] = "battery"
     properties: BatteryProperties
     schedule: Optional[Schedule] = None
 
 
-class CHP(BaseModel):
+class CHP(DeviceBase):
     """Combined Heat and Power device.
 
     Note: is_binary is automatically relaxed to continuous for investment planning.
     """
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["chp"] = "chp"
     properties: CHPProperties
     schedule: Optional[Schedule] = None
 
 
-class HeatAccumulator(BaseModel):
+class HeatAccumulator(DeviceBase):
     """Heat accumulator (thermal storage) device."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["heat_accumulator"] = "heat_accumulator"
     properties: HeatAccumulatorProperties
     schedule: Optional[Schedule] = None
 
 
-class PhotovoltaicNonSteerable(BaseModel):
+class PhotovoltaicNonSteerable(DeviceBase):
     """Non-steerable photovoltaic system: produces exactly its power profile."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["photovoltaic_nonsteerable"] = "photovoltaic_nonsteerable"
     properties: FixedProfileProperties
 
 
-class PhotovoltaicSteerable(BaseModel):
+class PhotovoltaicSteerable(DeviceBase):
     """Steerable photovoltaic system: produces anywhere in [0, max_power_profile].
 
     The optimizer curtails output when it is unprofitable (e.g. negative prices).
     """
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["photovoltaic_steerable"] = "photovoltaic_steerable"
     properties: PhotovoltaicSteerableProperties
 
 
-class FixedProduction(BaseModel):
+class FixedProduction(DeviceBase):
     """Fixed production device: produces exactly its power profile."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["fixed_production"] = "fixed_production"
     properties: FixedProfileProperties
 
 
-class MaxPowerProduction(BaseModel):
+class MaxPowerProduction(DeviceBase):
     """Steerable production device: produces in [0, max_power_profile] at a linear cost.
 
     The optimizer produces only when the electricity price exceeds cost_per_mwh.
     """
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["max_power_production"] = "max_power_production"
     properties: MaxPowerProductionProperties
 
 
-class FixedConsumption(BaseModel):
+class FixedConsumption(DeviceBase):
     """Fixed consumption device: consumes exactly its power profile."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["fixed_consumption"] = "fixed_consumption"
     properties: FixedProfileProperties
 
 
-class MaxPowerConsumption(BaseModel):
+class MaxPowerConsumption(DeviceBase):
     """Steerable consumption device: consumes in [0, max_power_profile] at a linear value.
 
     The optimizer consumes only when the electricity price is below value_per_mwh.
     """
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["max_power_consumption"] = "max_power_consumption"
     properties: MaxPowerConsumptionProperties
 
 
-class HeatDemand(BaseModel):
+class HeatDemand(DeviceBase):
     """Heat demand device."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["heat_demand"] = "heat_demand"
     properties: DemandProperties
 
 
-class ElectricityDemand(BaseModel):
+class ElectricityDemand(DeviceBase):
     """Electricity demand device."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["electricity_demand"] = "electricity_demand"
     properties: DemandProperties
 
 
-class ElectricityImport(BaseModel):
+class ElectricityImport(DeviceBase):
     """Electricity import (grid connection for buying)."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["electricity_import"] = "electricity_import"
     properties: MarketImportProperties
 
 
-class ElectricityExport(BaseModel):
+class ElectricityExport(DeviceBase):
     """Electricity export (grid connection for selling)."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["electricity_export"] = "electricity_export"
     properties: MarketExportProperties
 
 
-class GasImport(BaseModel):
+class GasImport(DeviceBase):
     """Gas import (gas supply connection)."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["gas_import"] = "gas_import"
-    properties: MarketImportProperties
+    properties: GasImportProperties
 
 
-class HeatExport(BaseModel):
+class HeatExport(DeviceBase):
     """Heat export (district heating connection)."""
 
-    name: str = Field(..., description="Unique device identifier")
     type: Literal["heat_export"] = "heat_export"
-    properties: MarketExportProperties
+    properties: HeatExportProperties
+
+
+class CzDistributionImport(DeviceBase):
+    """Electricity import billed under the Czech distribution capacity tariff.
+
+    Sent to the API as a plain electricity import with a monthly capacity
+    reservation carrying the T1/T2 price menu.
+    """
+
+    type: Literal["cz_distribution_import"] = "cz_distribution_import"
+    properties: CzDistributionImportProperties
 
 
 # Union type for all devices
@@ -360,4 +500,31 @@ Device = Union[
     ElectricityExport,
     GasImport,
     HeatExport,
+    CzDistributionImport,
 ]
+
+
+def device_to_wire(device: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert one dumped device dict to its API wire form.
+
+    Strips the client-only ``investment`` block and rewrites the Czech
+    distribution-tariff sugar device into a plain electricity import with
+    the equivalent monthly capacity reservation.
+    """
+    device = dict(device)
+    device.pop("investment", None)
+    if device.get("type") == "cz_distribution_import":
+        p = device["properties"]
+        # Single source of truth for the T1/T2 -> reservation mapping:
+        # rebuild the properties model and reuse its own conversion.
+        reservation = CzDistributionImportProperties.model_validate(p).to_capacity_reservation()
+        device = {
+            "name": device["name"],
+            "type": "electricity_import",
+            "properties": {
+                "price": p["price"],
+                "max_import": p["max_import"],
+                "capacity_reservation": reservation.model_dump(),
+            },
+        }
+    return device

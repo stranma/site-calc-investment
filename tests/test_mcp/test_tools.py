@@ -77,10 +77,23 @@ class TestSetInvestmentParams:
         result = mcp_server.set_investment_params(
             scenario_id=sc["scenario_id"],
             discount_rate=0.08,
-            device_capital_costs={"B1": 500000},
+            project_lifetime_years=15,
         )
         assert "8.0%" in result
-        assert "500,000" in result
+        assert "15y" in result
+
+    def test_device_investment_via_add_device(self) -> None:
+        sc = mcp_server.create_scenario(name="Test")
+        result = mcp_server.add_device(
+            scenario_id=sc["scenario_id"],
+            device_type="battery",
+            name="B1",
+            properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+            investment={"capital_cost": 500000, "annual_opex": 5000},
+        )
+        assert "10.0 MWh" in result
+        review = mcp_server.review_scenario(scenario_id=sc["scenario_id"])
+        assert "CAPEX 500,000" in review["devices"][0]["investment"]
 
 
 class TestReviewScenario:

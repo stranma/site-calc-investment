@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from site_calc_investment import (
     Battery,
+    DeviceInvestment,
     ElectricityExport,
     ElectricityImport,
     InvestmentClient,
@@ -17,6 +18,7 @@ from site_calc_investment import (
     InvestmentPlanningRequest,
     OptimizationConfig,
     Site,
+    calculate_investment_metrics,
 )
 from site_calc_investment.models.requests import TimeSpanInvestment
 
@@ -65,6 +67,10 @@ def main():
             "efficiency": 0.90,  # 90% round-trip
             "initial_soc": 0.5,  # Start at 50%
         },
+        investment=DeviceInvestment(
+            capital_cost=2_000_000,  # EUR 2M CAPEX (EUR 100/kWh)
+            annual_opex=20_000,  # EUR 20k/year O&M
+        ),
     )
 
     # Market devices (grid connections)
@@ -85,16 +91,10 @@ def main():
         devices=[battery, grid_import, grid_export],
     )
 
-    # Investment parameters
+    # Global investment parameters (per-device costs live on the devices)
     inv_params = InvestmentParameters(
         discount_rate=0.05,  # 5% discount rate
         project_lifetime_years=10,  # Required field
-        device_capital_costs={
-            "Battery1": 2_000_000  # EUR 2M CAPEX (EUR 100/kWh)
-        },
-        device_annual_opex={
-            "Battery1": 20_000  # EUR 20k/year O&M
-        },
     )
 
     # Create optimization request
@@ -139,20 +139,28 @@ def main():
     if summary.expected_profit is not None:
         print(f"Expected Profit: EUR {summary.expected_profit:,.2f}")
 
-    # Investment metrics (if available)
-    if result.investment_metrics:
-        metrics = result.investment_metrics
+    # Investment metrics: the server returns annual revenue/cost arrays;
+    # NPV/IRR/payback are calculated client-side so the per-device
+    # `investment` blocks (CAPEX/O&M) can be folded in.
+    server_metrics = result.investment_metrics
+    if server_metrics and server_metrics.annual_revenue_by_year and server_metrics.annual_costs_by_year:
         print("\nINVESTMENT METRICS:")
-        if metrics.total_revenue_10y is not None:
-            print(f"  Total Revenue (10y):  EUR {metrics.total_revenue_10y:>15,.0f}")
-        if metrics.total_costs_10y is not None:
-            print(f"  Total Costs (10y):    EUR {metrics.total_costs_10y:>15,.0f}")
-        if metrics.npv is not None:
-            print(f"  NPV:                  EUR {metrics.npv:>15,.0f}")
-        if metrics.irr is not None:
-            print(f"  IRR:                       {metrics.irr * 100:>15.2f}%")
-        if metrics.payback_period_years is not None:
-            print(f"  Payback Period:            {metrics.payback_period_years:>15.1f} years")
+        if server_metrics.total_revenue_10y is not None:
+            print(f"  Total Revenue (10y):  EUR {server_metrics.total_revenue_10y:>15,.0f}")
+        if server_metrics.total_costs_10y is not None:
+            print(f"  Total Costs (10y):    EUR {server_metrics.total_costs_10y:>15,.0f}")
+
+        metrics = calculate_investment_metrics(
+            annual_revenues=server_metrics.annual_revenue_by_year,
+            annual_costs=server_metrics.annual_costs_by_year,
+            discount_rate=inv_params.discount_rate,
+            devices=site.devices,
+        )
+        print(f"  NPV:                  EUR {metrics['npv']:>15,.0f}")
+        if metrics["irr"] is not None:
+            print(f"  IRR:                       {metrics['irr'] * 100:>15.2f}%")
+        if metrics["payback_period_years"] is not None:
+            print(f"  Payback Period:            {metrics['payback_period_years']:>15.1f} years")
 
     # Device schedules (first 24 hours)
     site_result = result.sites.get("battery_investment_site")

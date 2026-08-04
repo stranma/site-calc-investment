@@ -32,7 +32,7 @@ The MCP server runs **locally** on the user's machine. It has full filesystem ac
 | Feature | Value |
 |---------|-------|
 | Tools | 17 |
-| Device types | 10 |
+| Device types | 16 |
 | Max horizon | 100,000 intervals (~11 years) |
 | Resolution | 1-hour |
 | Local filesystem | Read + Write (CSV data files) |
@@ -137,15 +137,21 @@ Add a device to a draft scenario.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `scenario_id` | string | Yes | Target scenario |
-| `device_type` | string | Yes | One of 15 device types (see Section 4) |
+| `device_type` | string | Yes | One of 16 device types (see Section 4) |
 | `name` | string | Yes | Unique device name within scenario |
 | `properties` | object | Yes | Device-specific properties |
 | `schedule` | object | No | Runtime constraints |
+| `investment` | object | No | Fixed costs for client-side NPV/IRR, e.g. `{"capital_cost": 500000, "annual_opex": 10000}` |
 
 Properties support data shorthand:
 - A number (e.g., `50.0`) -- expanded to constant array matching the timespan
 - A list (e.g., `[30, 40, 80, 50]`) -- used directly
 - A file reference (e.g., `{"file": "prices.csv", "column": "price_eur"}`) -- loaded from local CSV
+
+The `investment` block is used only for client-side financial analysis and is
+stripped from the API payload. For capacity costs the optimizer should trade
+off (e.g. battery sizing), use sizing reservations in `properties`
+(`power_sizing`, `capacity_sizing`) instead.
 
 **Returns:** Summary string.
 
@@ -173,15 +179,16 @@ When `intervals` is provided, the `years` parameter is ignored for interval calc
 
 #### `set_investment_params`
 
-Set financial parameters for ROI calculation (NPV, IRR, payback).
+Set global financial parameters for ROI calculation (NPV, IRR, payback).
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `scenario_id` | string | Yes | | Target scenario |
 | `discount_rate` | float | No | 0.05 | Annual discount rate (0-0.5) |
 | `project_lifetime_years` | int | No | timespan years | Project lifetime |
-| `device_capital_costs` | object | No | | CAPEX by device name (EUR) |
-| `device_annual_opex` | object | No | | Annual O&M by device name (EUR) |
+
+Per-device CAPEX/OPEX no longer belongs here: pass an `investment` dict to
+`add_device` for each device instead (see the `add_device` section).
 
 **Returns:** Confirmation string.
 
@@ -275,6 +282,23 @@ Detail levels:
 - **summary** -- Aggregated totals (profit, cost, solve time, investment metrics). Compact.
 - **monthly** -- Summary + per-device monthly breakdowns.
 - **full** -- All data including hourly schedules. Can be very large.
+
+When any device carries a capacity reservation (a `capacity_reservation`
+property, battery `power_sizing`/`capacity_sizing`, or a
+`cz_distribution_import` device), every detail level includes a
+`capacity_reservations` block keyed by device name (prefixed with the site id
+for multi-site results). Each entry lists:
+
+| Field | Description |
+|-------|-------------|
+| `kind` | `power_sizing`, `capacity_sizing`, or `capacity_reservation` |
+| `reserved` | Contracted or optimizer-sized capacity (MW; MWh for `capacity_sizing`) |
+| `total_payment` | Sum of all billing-period charges (EUR) |
+| `periods_count` | Number of billing periods |
+| `tariffs_used` | How many periods each tariff was selected for, e.g. `{"T1": 9, "T2": 3}` |
+
+At `detail_level="full"`, each device schedule additionally carries the raw
+per-period breakdown (`start`, `end`, `peak`, `tariff`, `payment`).
 
 **Returns:** Result dict at requested detail level.
 
@@ -393,7 +417,7 @@ Get the properties schema for a device type.
 
 | Device Type | Description | Key Properties |
 |-------------|-------------|----------------|
-| `battery` | Battery energy storage | capacity, max_power, efficiency |
+| `battery` | Battery energy storage | capacity, max_power, efficiency, power_sizing*, capacity_sizing* |
 | `chp` | Combined heat and power | gas_input, el_output, heat_output |
 | `heat_accumulator` | Thermal storage | capacity, max_power, efficiency |
 | `photovoltaic_nonsteerable` | Solar PV, produces exactly its profile | power_profile |
@@ -402,12 +426,40 @@ Get the properties schema for a device type.
 | `max_power_production` | Steerable production at a linear cost | max_power_profile, cost_per_mwh |
 | `fixed_consumption` | Consumes exactly its profile | power_profile |
 | `max_power_consumption` | Steerable consumption at a linear value | max_power_profile, value_per_mwh |
-| `electricity_import` | Buy from grid | price, max_import |
-| `electricity_export` | Sell to grid | price, max_export |
+| `electricity_import` | Buy from grid | price, max_import, capacity_reservation* |
+| `electricity_export` | Sell to grid | price, max_export, capacity_reservation* |
+| `cz_distribution_import` | Buy from grid under the Czech distribution capacity tariff (2027 structure) | price, max_import, t1/t2 prices, reserved_capacity |
 | `gas_import` | Gas supply | price, max_import |
 | `heat_export` | Sell heat | price, max_export |
 | `electricity_demand` | Electricity load | max_demand_profile |
 | `heat_demand` | Heat load | max_demand_profile |
+
+Properties marked `*` are optional capacity-reservation features:
+
+- **`capacity_reservation`** (electricity import/export): a per-billing-period
+  capacity limit and charge on the flow. Billing periods are
+  `calendar_month`, `calendar_year`, or `horizon` (one period covering the
+  whole optimization). A tariff menu prices each period
+  (`fixed_price + reserved_price * R + peak_price * peak`); with several
+  tariffs, the cheapest tariff is assigned automatically each period. The
+  reserved capacity `R` is either contracted (`reserved` set) or sized by the
+  optimizer within `[min_reserved, max_reserved]`. An IANA `timezone`
+  (e.g. `Europe/Prague`) controls calendar-period boundaries.
+- **`power_sizing`** (battery): lets the optimizer size installed power (MW)
+  up to `max_power`, priced by the tariff menu. Use `periods="horizon"` for a
+  one-shot investment cost in EUR/MW.
+- **`capacity_sizing`** (battery): lets the optimizer size energy capacity
+  (MWh) up to `capacity`, priced by the tariff menu. Use `periods="horizon"`
+  for a one-shot investment cost in EUR/MWh. An optimizer-sized capacity must
+  start empty: `initial_soc` defaults to 0 for sizing runs and must not be
+  set above 0 (fix `reserved` to keep a non-zero initial SOC).
+- **`cz_distribution_import`**: convenience device for the Czech distribution
+  tariff -- monthly billing with a T1/T2 price menu
+  (`t1_reserved_price`/`t1_peak_price`/`t2_reserved_price`/`t2_peak_price`,
+  EUR/MW/month), `reserved_capacity` contracted or `null` to let the optimizer
+  size it, `timezone` defaulting to `Europe/Prague`. It is sent to the API as
+  a plain `electricity_import` with the equivalent monthly
+  `capacity_reservation`.
 
 Use `get_device_schema(device_type)` for full property documentation.
 
@@ -427,15 +479,15 @@ LLM actions:
 2. create_scenario(name="20 MWh Battery - CZ 2026")
 3. set_timespan(scenario_id=sid, start_year=2026, intervals=864)
 4. add_device(scenario_id=sid, device_type="battery", name="BESS",
-     properties={"capacity": 20.0, "max_power": 10.0, "efficiency": 0.90})
+     properties={"capacity": 20.0, "max_power": 10.0, "efficiency": 0.90},
+     investment={"capital_cost": 500000})
 5. add_device(scenario_id=sid, device_type="electricity_import", name="GridBuy",
      properties={"price": {"file": ".../2026.csv", "column": "price_eur_mwh"},
                  "max_import": 10.0})
 6. add_device(scenario_id=sid, device_type="electricity_export", name="GridSell",
      properties={"price": {"file": ".../2026.csv", "column": "price_eur_mwh"},
                  "max_export": 10.0})
-7. set_investment_params(scenario_id=sid, discount_rate=0.05,
-     device_capital_costs={"BESS": 500000})
+7. set_investment_params(scenario_id=sid, discount_rate=0.05)
 8. review_scenario(scenario_id=sid)
 9. submit_scenario(scenario_id=sid)
 10. get_job_status(job_id=jid)  -- poll until complete
@@ -443,6 +495,10 @@ LLM actions:
 ```
 
 LLM then presents the results: profit, NPV, IRR, payback period.
+`get_job_result` computes NPV/IRR/payback client-side from the annual
+revenue/cost arrays using the submitting scenario's per-device
+`investment` blocks and discount rate (the raw server response leaves
+those fields null).
 
 ---
 

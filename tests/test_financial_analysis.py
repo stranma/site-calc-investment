@@ -4,6 +4,7 @@ import pytest
 
 from site_calc_investment.analysis.financial import (
     aggregate_annual,
+    calculate_investment_metrics,
     calculate_irr,
     calculate_npv,
     calculate_payback_period,
@@ -299,3 +300,76 @@ class TestFinancialAnalysisIntegration:
         cash_flows_with_capex = [initial_capex] + annual_cash_flows
         payback = calculate_payback_period(cash_flows_with_capex)
         assert payback is None or payback > 10
+
+
+class TestCalculateInvestmentMetrics:
+    """Tests for the calculate_investment_metrics helper."""
+
+    def test_metrics_with_device_investment_blocks(self):
+        """CAPEX and OPEX from device investment blocks feed the metrics."""
+        from site_calc_investment.models import Battery, BatteryProperties, DeviceInvestment
+
+        battery = Battery(
+            name="BESS",
+            properties=BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.9),
+            investment=DeviceInvestment(capital_cost=1_000_000, annual_opex=10_000),
+        )
+
+        metrics = calculate_investment_metrics(
+            annual_revenues=[300_000.0] * 10,
+            annual_costs=[50_000.0] * 10,
+            discount_rate=0.05,
+            devices=[battery],
+        )
+
+        assert metrics["initial_investment"] == 1_000_000
+        # Net flow per year: 300000 - 50000 - 10000 = 240000
+        assert metrics["annual_net_cash_flows"] == [240_000.0] * 10
+        expected_npv = calculate_npv([240_000.0] * 10, 0.05, initial_investment=-1_000_000)
+        assert abs(metrics["npv"] - expected_npv) < 1e-6
+        assert metrics["irr"] is not None and metrics["irr"] > 0
+        assert metrics["payback_period_years"] is not None
+
+    def test_reservation_charges_not_double_counted(self):
+        """annual_costs already contains reservation charges; only opex is added on top."""
+        from site_calc_investment.models import Battery, BatteryProperties, DeviceInvestment
+
+        annual_costs_with_charges = [80_000.0] * 5  # includes e.g. 30k of capacity charges
+        battery = Battery(
+            name="BESS",
+            properties=BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.9),
+            investment=DeviceInvestment(annual_opex=10_000.0),
+        )
+
+        metrics = calculate_investment_metrics(
+            annual_revenues=[200_000.0] * 5,
+            annual_costs=annual_costs_with_charges,
+            discount_rate=0.05,
+            devices=[battery],
+        )
+
+        # Only the fixed opex is added on top of the charge-inclusive costs:
+        # 200000 - 80000 - 10000; the charges inside annual_costs are counted once.
+        assert metrics["initial_investment"] == 0.0
+        assert metrics["annual_net_cash_flows"] == [110_000.0] * 5
+
+    def test_devices_without_investment_blocks_ignored(self):
+        from site_calc_investment.models import Battery, BatteryProperties
+
+        battery = Battery(name="B", properties=BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.9))
+        metrics = calculate_investment_metrics(
+            annual_revenues=[100.0],
+            annual_costs=[40.0],
+            discount_rate=0.05,
+            devices=[battery],
+        )
+        assert metrics["initial_investment"] == 0.0
+        assert metrics["annual_net_cash_flows"] == [60.0]
+
+    def test_length_mismatch_rejected(self):
+        with pytest.raises(ValueError, match="does not match"):
+            calculate_investment_metrics(
+                annual_revenues=[100.0, 100.0],
+                annual_costs=[40.0],
+                discount_rate=0.05,
+            )

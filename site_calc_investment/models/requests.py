@@ -1,11 +1,11 @@
 """Request models for investment client."""
 
-from typing import Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from site_calc_investment.models.common import Resolution, TimeSpan
-from site_calc_investment.models.devices import Device
+from site_calc_investment.models.devices import Device, device_to_wire
 
 
 class Site(BaseModel):
@@ -30,25 +30,17 @@ class Site(BaseModel):
 
 
 class InvestmentParameters(BaseModel):
-    """Financial parameters for investment analysis.
+    """Global financial parameters for investment analysis.
 
-    These parameters are used to calculate NPV, IRR, and other
-    investment metrics.
+    Per-device investment costs live on each device's ``investment``
+    block; optimizer-priced capacity costs are expressed as sizing
+    reservations on the devices themselves.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     discount_rate: float = Field(..., ge=0, le=0.5, description="Annual discount rate for NPV (0-0.5, e.g., 0.05 = 5%)")
     project_lifetime_years: int = Field(..., ge=1, le=50, description="Project lifetime in years")
-    investment_budget: Optional[float] = Field(None, ge=0, description="Maximum investment budget in EUR")
-    carbon_price: Optional[float] = Field(None, ge=0, description="Carbon price in EUR/tCO2")
-    device_capital_costs: Optional[Dict[str, float]] = Field(
-        None, description="CAPEX for each device (EUR), keyed by device name"
-    )
-    device_annual_opex: Optional[Dict[str, float]] = Field(
-        None, description="Annual O&M costs (EUR/year), keyed by device name"
-    )
-    price_escalation_rate: Optional[float] = Field(
-        None, ge=0, le=1, description="Annual price escalation rate (e.g., 0.02 = 2%)"
-    )
 
 
 class OptimizationConfig(BaseModel):
@@ -102,11 +94,11 @@ class InvestmentPlanningRequest(BaseModel):
         ...     timespan=TimeSpanInvestment.for_years(2025, 10),
         ...     investment_parameters=InvestmentParameters(
         ...         discount_rate=0.05,
-        ...         device_capital_costs={"Battery1": 500000}
+        ...         project_lifetime_years=10,
         ...     ),
         ...     optimization_config=OptimizationConfig(
-        ...         objective="maximize_npv",
-        ...         time_limit_seconds=3600
+        ...         objective="maximize_profit",
+        ...         time_limit_seconds=600,
         ...     )
         ... )
     """
@@ -124,10 +116,15 @@ class InvestmentPlanningRequest(BaseModel):
     def model_dump_for_api(self) -> dict:
         """Convert to API format.
 
+        Strips client-only fields (device ``investment`` blocks) and
+        rewrites sugar devices to their generic wire form.
+
         Returns:
             Dictionary ready for JSON serialization and API submission
         """
         data = self.model_dump()
         # Convert timespan to API format
         data["timespan"] = self.timespan.to_api_dict()
+        for site in data["sites"]:
+            site["devices"] = [device_to_wire(d) for d in site["devices"]]
         return data

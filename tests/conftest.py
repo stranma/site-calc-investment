@@ -12,6 +12,7 @@ from site_calc_investment.models import (
     Battery,
     BatteryProperties,
     CHPProperties,
+    DeviceInvestment,
     ElectricityExport,
     ElectricityImport,
     InvestmentParameters,
@@ -71,9 +72,11 @@ def hourly_prices_10year() -> List[float]:
 
 @pytest.fixture
 def battery_10mw() -> Battery:
-    """10 MW / 20 MWh battery (2-hour duration)."""
+    """10 MW / 20 MWh battery (2-hour duration) with fixed investment costs."""
     return Battery(
-        name="Battery1", properties=BatteryProperties(capacity=20.0, max_power=10.0, efficiency=0.90, initial_soc=0.5)
+        name="Battery1",
+        properties=BatteryProperties(capacity=20.0, max_power=10.0, efficiency=0.90, initial_soc=0.5),
+        investment=DeviceInvestment(capital_cost=2_000_000, annual_opex=20_000),
     )
 
 
@@ -115,8 +118,6 @@ def investment_params() -> InvestmentParameters:
     return InvestmentParameters(
         discount_rate=0.05,
         project_lifetime_years=10,
-        device_capital_costs={"Battery1": 2_000_000},
-        device_annual_opex={"Battery1": 20_000},
     )
 
 
