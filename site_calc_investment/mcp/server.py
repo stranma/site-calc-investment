@@ -560,8 +560,10 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "required": False,
                     "description": (
                         "Let the optimizer size energy capacity (MWh) up to capacity. "
-                        "Currently restricted to periods='horizon' with a single tariff "
-                        "carrying reserved_price only (EUR/MWh). "
+                        "Use periods='horizon' with tariffs as investment cost tiers "
+                        "(EUR/MWh); multiple tariffs form a menu and the cheapest applies. "
+                        "An optimizer-sized capacity must start empty: initial_soc "
+                        "defaults to 0 and must not be set above 0. "
                         "Example: {'periods': 'horizon', 'tariffs': "
                         "[{'name': 'capex', 'reserved_price': 30000, 'peak_price': 0}]}"
                     ),

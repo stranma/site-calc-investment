@@ -39,33 +39,40 @@ class BatteryProperties(BaseModel):
     capacity_sizing: Optional[CapacityReservation] = Field(
         None,
         description=(
-            "Let the optimizer size energy capacity (MWh). Currently restricted to "
-            "periods='horizon' with a single tariff carrying reserved_price only "
-            "(EUR/MWh); capacity is the sizing ceiling"
+            "Let the optimizer size energy capacity (MWh). Use periods='horizon' with "
+            "tariffs as investment cost tiers (EUR/MWh); capacity is the sizing ceiling. "
+            "An optimizer-sized capacity must start empty (initial_soc defaults to 0 and "
+            "must not be set above 0 unless 'reserved' fixes the capacity)"
         ),
     )
 
     @model_validator(mode="after")
-    def validate_capacity_sizing_restricted(self) -> "BatteryProperties":
-        """Enforce the currently supported form of capacity_sizing."""
+    def validate_capacity_sizing(self) -> "BatteryProperties":
+        """Enforce the server's rules for capacity_sizing.
+
+        An optimizer-sized energy capacity must start empty: every built
+        MWh would otherwise arrive holding ``initial_soc`` MWh of free
+        energy, distorting the sizing. When ``initial_soc`` is not set
+        explicitly, sizing runs default it to 0 (the stock 0.5 default
+        only makes sense for a fixed capacity). SOC anchor points are
+        incompatible with capacity_sizing (anchors target a fraction of
+        the ceiling, which may exceed the built capacity).
+        """
         cs = self.capacity_sizing
         if cs is not None:
-            supported = (
-                cs.periods == "horizon"
-                and cs.reserved is None
-                and len(cs.tariffs) == 1
-                and cs.tariffs[0].peak_price == 0
-                and cs.tariffs[0].fixed_price == 0
-                and cs.min_reserved == 0
-                and cs.max_reserved is None
-                and cs.timezone is None
-            )
-            if not supported:
+            if self.soc_anchor_interval_hours is not None:
                 raise ValueError(
-                    "capacity_sizing currently supports only a single-tariff whole-horizon form "
-                    "(periods='horizon', one tariff with reserved_price only, no reserved value, "
-                    "bounds, or timezone); richer forms will be enabled in a future release"
+                    "capacity_sizing cannot be combined with SOC anchor points (soc_anchor_interval_hours)"
                 )
+            if cs.reserved is None:
+                if "initial_soc" not in self.model_fields_set:
+                    self.initial_soc = 0.0
+                elif self.initial_soc > 0:
+                    raise ValueError(
+                        "initial_soc > 0 cannot be combined with an optimizer-sized "
+                        "capacity_sizing (no fixed 'reserved' value); use initial_soc=0 "
+                        "or fix the reserved capacity"
+                    )
         return self
 
 

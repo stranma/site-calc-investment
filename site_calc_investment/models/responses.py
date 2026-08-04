@@ -35,7 +35,9 @@ class ReservationPeriod(BaseModel):
 
     start: datetime = Field(..., description="Billing period start")
     end: datetime = Field(..., description="Billing period end (exclusive)")
-    peak: float = Field(..., description="Measured peak of the watched flow in the period (MW)")
+    peak: float = Field(
+        ..., description="Measured peak of the watched quantity in the period (MW; MWh for capacity_sizing)"
+    )
     tariff: Optional[str] = Field(None, description="Selected tariff name (None for unpriced limits)")
     payment: float = Field(..., description="Charge billed for this period (EUR)")
 
@@ -50,6 +52,14 @@ class CapacityReservationResult(BaseModel):
 
     kind: str = Field(..., description="power_sizing | capacity_sizing | capacity_reservation")
     material: Optional[str] = Field(None, description="Watched material (e.g. 'electricity')")
+    meter: str = Field(
+        "",
+        description=(
+            "Server meter label of the priced quantity: the port flow name for market "
+            "devices, '{material}_power' for storage power sizing, '{material}_capacity' "
+            "for storage energy sizing"
+        ),
+    )
     reserved: float = Field(..., description="Contracted or optimizer-sized capacity (MW; MWh for capacity_sizing)")
     total_payment: float = Field(..., description="Sum of all period payments (EUR)")
     periods: List[ReservationPeriod] = Field(default_factory=list, description="Per-billing-period breakdown")

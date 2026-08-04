@@ -24,9 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Battery investment sizing**: `power_sizing` lets the optimizer size
   installed power (MW) up to `max_power`, priced by a tariff menu (use
   `periods='horizon'` for a one-shot investment cost in EUR/MW);
-  `capacity_sizing` sizes energy capacity (MWh) up to `capacity` (currently
-  restricted to a single whole-horizon tariff with `reserved_price` only,
-  EUR/MWh).
+  `capacity_sizing` sizes energy capacity (MWh) up to `capacity`, priced by
+  a tariff menu (EUR/MWh). An optimizer-sized capacity must start empty:
+  `initial_soc` defaults to 0 for sizing runs and must not be set above 0
+  (fix `reserved` to keep a non-zero initial SOC).
 - **New device type `cz_distribution_import`**: electricity import billed
   under the Czech distribution capacity tariff (2027 tariff structure).
   Monthly billing with a T1/T2 price menu (`t1_reserved_price` /

@@ -143,8 +143,10 @@ off, use sizing reservations instead (see Section 4.4):
   `max_power`, priced by a tariff menu (use `periods="horizon"` for a
   one-shot investment cost in EUR/MW).
 - `capacity_sizing` -- the optimizer sizes energy capacity (MWh) up to
-  `capacity`. Currently restricted to `periods="horizon"` with a single
-  tariff carrying `reserved_price` only (EUR/MWh).
+  `capacity`, priced by a tariff menu (use `periods="horizon"` for a
+  one-shot investment cost in EUR/MWh). An optimizer-sized capacity must
+  start empty: `initial_soc` defaults to 0 for sizing runs and must not
+  be set above 0 (fix `reserved` to keep a non-zero initial SOC).
 
 #### 4.2.2 CHP
 

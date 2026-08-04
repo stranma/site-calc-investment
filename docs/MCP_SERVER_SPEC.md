@@ -449,8 +449,10 @@ Properties marked `*` are optional capacity-reservation features:
   up to `max_power`, priced by the tariff menu. Use `periods="horizon"` for a
   one-shot investment cost in EUR/MW.
 - **`capacity_sizing`** (battery): lets the optimizer size energy capacity
-  (MWh) up to `capacity`. Currently restricted to `periods="horizon"` with a
-  single tariff carrying `reserved_price` only (EUR/MWh).
+  (MWh) up to `capacity`, priced by the tariff menu. Use `periods="horizon"`
+  for a one-shot investment cost in EUR/MWh. An optimizer-sized capacity must
+  start empty: `initial_soc` defaults to 0 for sizing runs and must not be
+  set above 0 (fix `reserved` to keep a non-zero initial SOC).
 - **`cz_distribution_import`**: convenience device for the Czech distribution
   tariff -- monthly billing with a T1/T2 price menu
   (`t1_reserved_price`/`t1_peak_price`/`t2_reserved_price`/`t2_peak_price`,

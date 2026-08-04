@@ -441,50 +441,73 @@ class TestCapacityReservation:
         )
         assert len(props.power_sizing.tariffs) == 2
 
-    def test_battery_capacity_sizing_restricted_form(self):
-        """capacity_sizing accepts only the single-tariff whole-horizon form."""
-        valid = CapacityReservation(
+    def test_battery_capacity_sizing_full_form_accepted(self):
+        """capacity_sizing accepts the full reservation form (menus, calendar periods)."""
+        simple = CapacityReservation(
             periods="horizon",
             tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
         )
-        props = BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92, capacity_sizing=valid)
+        props = BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92, capacity_sizing=simple)
         assert props.capacity_sizing.tariffs[0].reserved_price == 30_000.0
 
-        # Monthly periods -> rejected
-        with pytest.raises(ValidationError, match="single-tariff whole-horizon"):
+        rich = CapacityReservation(
+            periods="calendar_month",
+            tariffs=[
+                CapacityTariff(name="a", reserved_price=30_000.0, peak_price=0.0),
+                CapacityTariff(name="b", reserved_price=20_000.0, peak_price=0.0, fixed_price=50_000.0),
+            ],
+            timezone="Europe/Prague",
+        )
+        props = BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92, capacity_sizing=rich)
+        assert len(props.capacity_sizing.tariffs) == 2
+
+    def test_battery_optimized_capacity_sizing_defaults_initial_soc_to_zero(self):
+        """Sizing runs default initial_soc to 0 (the server rejects free starting energy)."""
+        sizing = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+        )
+        props = BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92, capacity_sizing=sizing)
+        assert props.initial_soc == 0.0
+        # No sizing -> stock default stays
+        assert BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92).initial_soc == 0.5
+
+    def test_battery_optimized_capacity_sizing_rejects_positive_initial_soc(self):
+        """Explicit initial_soc > 0 with an optimizer-sized capacity is rejected."""
+        sizing = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+        )
+        with pytest.raises(ValidationError, match="initial_soc"):
+            BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92, initial_soc=0.5, capacity_sizing=sizing)
+
+    def test_battery_fixed_capacity_sizing_keeps_initial_soc(self):
+        """A fixed reserved capacity keeps the stock initial_soc default and allows > 0."""
+        sizing = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+            reserved=5.0,
+        )
+        props = BatteryProperties(capacity=8.0, max_power=10.0, efficiency=0.92, capacity_sizing=sizing)
+        assert props.initial_soc == 0.5
+        props = BatteryProperties(
+            capacity=8.0, max_power=10.0, efficiency=0.92, initial_soc=0.7, capacity_sizing=sizing
+        )
+        assert props.initial_soc == 0.7
+
+    def test_battery_capacity_sizing_rejects_soc_anchors(self):
+        """capacity_sizing is incompatible with SOC anchor points."""
+        sizing = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+        )
+        with pytest.raises(ValidationError, match="anchor"):
             BatteryProperties(
                 capacity=8.0,
                 max_power=10.0,
                 efficiency=0.92,
-                capacity_sizing=CapacityReservation(
-                    periods="calendar_month",
-                    tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
-                ),
-            )
-        # Two tariffs -> rejected
-        with pytest.raises(ValidationError, match="single-tariff whole-horizon"):
-            BatteryProperties(
-                capacity=8.0,
-                max_power=10.0,
-                efficiency=0.92,
-                capacity_sizing=CapacityReservation(
-                    periods="horizon",
-                    tariffs=[
-                        CapacityTariff(name="a", reserved_price=30_000.0, peak_price=0.0),
-                        CapacityTariff(name="b", reserved_price=20_000.0, peak_price=0.0, fixed_price=50_000.0),
-                    ],
-                ),
-            )
-        # Peak price on the tariff -> rejected
-        with pytest.raises(ValidationError, match="single-tariff whole-horizon"):
-            BatteryProperties(
-                capacity=8.0,
-                max_power=10.0,
-                efficiency=0.92,
-                capacity_sizing=CapacityReservation(
-                    periods="horizon",
-                    tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=1.0)],
-                ),
+                soc_anchor_interval_hours=4320,
+                capacity_sizing=sizing,
             )
 
 
