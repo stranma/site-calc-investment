@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.3.0] - 2026-08-04
 
+> The capacity-reservation features (reservations, battery sizing,
+> `cz_distribution_import`) and the reservation charges inside
+> `annual_costs_by_year` require the optimization service at API version
+> 1.3 or newer. Against an older service these device properties would be
+> silently ignored -- call `get_version()` after upgrading to confirm
+> compatibility.
+
 ### Added
 
 - **Capacity reservations**: new `CapacityReservation` / `CapacityTariff`

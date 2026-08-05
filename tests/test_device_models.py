@@ -418,6 +418,11 @@ class TestCapacityReservation:
         with pytest.raises(ValidationError, match="exceed max_reserved"):
             CapacityReservation(periods="horizon", reserved=9.0, max_reserved=8.0)
 
+    def test_tariff_menu_size_bounded(self):
+        tariffs = [CapacityTariff(name=f"T{i}", reserved_price=1000.0, peak_price=0.0) for i in range(51)]
+        with pytest.raises(ValidationError):
+            CapacityReservation(periods="calendar_month", tariffs=tariffs, reserved=5.0)
+
     def test_invalid_periods_and_timezone(self):
         with pytest.raises(ValidationError):
             CapacityReservation(periods="weekly", reserved=5.0)
