@@ -2,6 +2,13 @@
 
 ## Migrating from 1.2.x to 1.3.0
 
+> **Server dependency:** the new capacity-reservation features and the
+> reservation charges included in `annual_costs_by_year` require the
+> optimization service at API version 1.3+. An older service silently
+> ignores the new device properties (the same failure mode as the removed
+> `max_import_unit_cost` field). Call `get_version()` after upgrading to
+> confirm the service side.
+
 Version 1.3.0 moves per-device investment costs onto the devices themselves,
 introduces capacity reservations (per-billing-period capacity limits and
 charges with automatic cheapest-tariff assignment), and removes

@@ -42,7 +42,7 @@ class CapacityReservation(BaseModel):
         ),
     )
     tariffs: List[CapacityTariff] = Field(
-        default_factory=list, description="Price menu; empty list declares an unpriced pure limit"
+        default_factory=list, max_length=50, description="Price menu; empty list declares an unpriced pure limit"
     )
     reserved: Optional[float] = Field(
         None, ge=0, description="Fixed contracted capacity (MW); None lets the optimizer size R"

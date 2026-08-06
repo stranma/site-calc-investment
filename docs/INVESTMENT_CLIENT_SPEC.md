@@ -263,8 +263,8 @@ period), `peak_price` (EUR per MW of the period's measured peak), and an
 optional `fixed_price` (EUR per period). Per billing period the charge is
 `fixed_price + reserved_price * R + peak_price * peak`. With several tariffs
 on one reservation, the cheapest tariff is assigned automatically each
-period. Optimizing `R` (i.e. `reserved=None`) requires at least one tariff
-with `reserved_price > 0`.
+period. Optimizing `R` (i.e. `reserved=None`) requires every tariff to have
+`reserved_price > 0`.
 
 Capacity reservations appear in three places:
 
