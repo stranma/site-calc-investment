@@ -65,7 +65,7 @@ request = InvestmentPlanningRequest(
     investment_parameters=inv_params,
     optimization_config=OptimizationConfig(
         objective="maximize_profit",  # Options: maximize_profit, minimize_cost, maximize_self_consumption
-        time_limit_seconds=300,  # Max 900 seconds (15 min)
+        time_limit_seconds=300,  # Max 3600 seconds (60 min)
     ),
 )
 
@@ -101,7 +101,7 @@ print(f"Profit: €{result.summary.expected_profit:,.2f}")
 | Resolution | 1-hour only |
 | ANS Support | No |
 | Binary Variables | Relaxed to continuous |
-| Timeout | 900 seconds (15 minutes) max |
+| Timeout | 3600 seconds (60 minutes) max |
 
 ## Supported Devices
 

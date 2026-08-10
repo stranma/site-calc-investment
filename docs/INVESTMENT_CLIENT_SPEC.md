@@ -23,7 +23,7 @@ The investment client provides Python bindings for the Site-Calc optimization AP
 | **Resolution** | 1-hour only |
 | **ANS Optimization** | ❌ No |
 | **Binary Variables** | ⚠️ Relaxed to continuous |
-| **Timeout** | 900 seconds (15 minutes) max |
+| **Timeout** | 3600 seconds (60 minutes) max |
 | **Endpoints** | `/device-planning` only |
 
 ### 1.2 Use Cases
@@ -361,7 +361,7 @@ request = InvestmentPlanningRequest(
     investment_parameters=inv_params,
     optimization_config=OptimizationConfig(
         objective="maximize_profit",
-        time_limit_seconds=900,  # 15 minute maximum
+        time_limit_seconds=3600,  # 60 minute maximum
         relax_binary_variables=True,
     ),
 )
@@ -683,7 +683,7 @@ for capacity in [5.0, 10.0, 15.0]:
         sites=[site],
         timespan=timespan,
         investment_parameters=inv_params,
-        optimization_config=OptimizationConfig(objective="maximize_profit", time_limit_seconds=900),
+        optimization_config=OptimizationConfig(objective="maximize_profit", time_limit_seconds=3600),
     )
 
     job = client.create_planning_job(request)
@@ -755,7 +755,7 @@ timespan.intervals == 87600
 
 ### 11.1 Solve Times
 
-The solver time limit is capped at 900 seconds (15 minutes) per job. Solve
+The solver time limit is capped at 3600 seconds (60 minutes) per job. Solve
 time grows with horizon length, device count, and the number of capacity
 reservations. Keeping `relax_binary_variables=True` (the default) is what
 makes 10-year horizons tractable within the limit.
@@ -825,7 +825,7 @@ plot_sensitivity(discount_rates, npvs, xlabel="Discount Rate", ylabel="NPV (€)
 | Max intervals | 100,000 |
 | Max sites | 50 |
 | Max devices per site | 30 |
-| Solver time limit | 900 seconds (15 minutes) |
+| Solver time limit | 3600 seconds (60 minutes) |
 | Request size | 50 MB |
 | Resolution | 1-hour only |
 
@@ -856,7 +856,7 @@ plot_sensitivity(discount_rates, npvs, xlabel="Discount Rate", ylabel="NPV (€)
 ### 14.3 Modified Behavior
 
 - CHP `is_binary` ignored (always continuous)
-- Higher solver time limit cap (900 seconds maximum; the default remains 300 seconds)
+- Higher solver time limit cap (3600 seconds maximum; the default remains 300 seconds)
 - Longer default poll intervals (30s vs 5s)
 
 ---
