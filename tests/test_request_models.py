@@ -110,11 +110,11 @@ class TestOptimizationConfig:
     def test_optimization_config_timeout_validation(self):
         """Test timeout validation (max 15 minutes for investment)."""
         # Valid
-        OptimizationConfig(time_limit_seconds=900)
+        OptimizationConfig(time_limit_seconds=3600)
 
         # Invalid: exceeds limit
         with pytest.raises(ValueError):
-            OptimizationConfig(time_limit_seconds=901)
+            OptimizationConfig(time_limit_seconds=3601)
 
         # Invalid: negative
         with pytest.raises(ValueError):

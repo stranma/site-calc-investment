@@ -476,7 +476,7 @@ class ScenarioStore:
 
         opt_config = OptimizationConfig(
             objective=objective,
-            time_limit_seconds=min(solver_timeout, 900),
+            time_limit_seconds=min(solver_timeout, 3600),
             relax_binary_variables=True,
         )
 

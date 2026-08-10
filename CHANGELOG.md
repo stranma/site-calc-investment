@@ -5,6 +5,17 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-08-10
+
+### Changed
+
+- Maximum solver timeout raised from 900 seconds (15 minutes) to 3600
+  seconds (60 minutes) for optimization requests; the default remains
+  300 seconds. The MCP `submit_scenario` clamp and all documentation
+  updated to match. Note: the server must allow the higher limit
+  (`INVESTMENT_MAX_TIME_LIMIT`), otherwise requests above its cap are
+  rejected with HTTP 400.
+
 ## [1.3.0] - 2026-08-04
 
 > The capacity-reservation features (reservations, battery sizing,

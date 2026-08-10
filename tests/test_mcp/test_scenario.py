@@ -400,8 +400,8 @@ class TestScenarioBuildRequest:
             name="B1",
             properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
         )
-        request = store.build_request(scenario_id, solver_timeout=2000)
-        assert request.optimization_config.time_limit_seconds == 900
+        request = store.build_request(scenario_id, solver_timeout=5000)
+        assert request.optimization_config.time_limit_seconds == 3600
 
     def test_build_request_with_steerable_pv(self, store: ScenarioStore, scenario_id: str) -> None:
         store.add_device(
