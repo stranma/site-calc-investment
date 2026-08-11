@@ -566,7 +566,12 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "required": False,
                     "default": 0.5,
                     "range": "0-1",
-                    "description": "Initial state of charge",
+                    "description": (
+                        "Initial state of charge. With degradation_yearly, an omitted "
+                        "value defaults to min(0.5, year-1 factor); an explicit value "
+                        "above the year-1 factor is rejected. With an optimizer-sized "
+                        "capacity_sizing, an omitted value defaults to 0."
+                    ),
                 },
                 "soc_anchor_interval_hours": {
                     "type": "int",
@@ -604,6 +609,23 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                         "unless 'reserved' fixes the capacity. "
                         "Example: {'periods': 'horizon', 'tariffs': "
                         "[{'name': 'capex', 'reserved_price': 30000, 'peak_price': 0}]}"
+                    ),
+                },
+                "degradation_yearly": {
+                    "type": "list[float]",
+                    "required": False,
+                    "description": (
+                        "Yearly capacity degradation in percent, one entry per model "
+                        "year: [5, 3, 2] = 5% in year 1, 3% in year 2, 2% in year 3. "
+                        "The curve must cover every year of the horizon (longer is "
+                        "allowed, extras ignored). "
+                        "Caps usable stored energy at prod(1 - d/100) times the energy "
+                        "the battery actually has (fixed reserved energy when "
+                        "capacity_sizing is present, else capacity); each year's loss "
+                        "applies from the start of the year it occurs (prepend 0 for an "
+                        "undegraded first year). initial_soc must not exceed the year-1 "
+                        "factor. Not combinable with SOC anchors or an optimizer-sized "
+                        "capacity_sizing."
                     ),
                 },
             },

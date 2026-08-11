@@ -47,6 +47,57 @@ class BatteryProperties(BaseModel):
             "unless 'reserved' fixes the capacity"
         ),
     )
+    degradation_yearly: Optional[List[float]] = Field(
+        None,
+        description=(
+            "Yearly capacity degradation curve in percent, one entry per model "
+            "year: [5, 3, 2] = 5% in year 1, 3% in year 2, 2% in year 3. The curve "
+            "must cover every year of the horizon (a longer curve is allowed; the "
+            "extra entries are ignored). "
+            "The server caps the usable stored energy at prod(1 - d/100) times the "
+            "energy the battery actually has (the fixed 'reserved' energy when "
+            "capacity_sizing is present, else capacity). Each year's loss applies "
+            "from the START of the year it occurs (conservative: year 1 already runs "
+            "at 95% in the example; prepend 0 for an undegraded first year). "
+            "initial_soc must not exceed the year-1 factor (the default adapts). Not "
+            "combinable with SOC anchor points or an optimizer-sized capacity_sizing."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_degradation(self) -> "BatteryProperties":
+        """Mirror the server's rules for the degradation curve."""
+        curve = self.degradation_yearly
+        if curve is not None:
+            if len(curve) == 0:
+                raise ValueError("degradation_yearly must not be empty")
+            if any(not 0 <= d < 100 for d in curve):
+                raise ValueError(f"degradation_yearly values must be in [0, 100), got {curve}")
+            if self.soc_anchor_interval_hours is not None:
+                raise ValueError(
+                    "degradation_yearly cannot be combined with SOC anchor points (soc_anchor_interval_hours)"
+                )
+            if self.capacity_sizing is not None and self.capacity_sizing.reserved is None:
+                raise ValueError(
+                    "degradation_yearly cannot be combined with an optimizer-sized "
+                    "capacity_sizing (the degraded ceiling is absolute MWh and may "
+                    "exceed the built energy); fix the reserved capacity or drop the curve"
+                )
+            # soc[0] is not bounded by the degradation envelope: starting
+            # above the year-1 factor would mint energy the degraded battery
+            # cannot hold (or make the model infeasible). Reject an explicit
+            # conflict; adapt the stock default.
+            year1_factor = 1.0 - curve[0] / 100.0
+            if "initial_soc" in self.model_fields_set:
+                if self.initial_soc > year1_factor + 1e-9:
+                    raise ValueError(
+                        f"initial_soc ({self.initial_soc}) exceeds the year-1 degraded "
+                        f"capacity factor ({year1_factor}); the battery cannot start "
+                        f"holding more energy than degradation allows"
+                    )
+            else:
+                self.initial_soc = min(self.initial_soc, year1_factor)
+        return self
 
     @model_validator(mode="after")
     def validate_capacity_sizing(self) -> "BatteryProperties":

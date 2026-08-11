@@ -516,6 +516,70 @@ class TestCapacityReservation:
             )
 
 
+class TestBatteryDegradation:
+    """Tests for the yearly degradation curve on BatteryProperties."""
+
+    def _props(self, **extra):
+        return BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.9, **extra)
+
+    def test_curve_accepted_and_serialized(self):
+        props = self._props(degradation_yearly=[5, 3, 2])
+        assert props.degradation_yearly == [5, 3, 2]
+        assert props.model_dump()["degradation_yearly"] == [5, 3, 2]
+
+    def test_zero_and_fractional_entries_accepted(self):
+        props = self._props(degradation_yearly=[0, 2.5])
+        assert props.degradation_yearly == [0, 2.5]
+
+    def test_empty_curve_rejected(self):
+        with pytest.raises(ValidationError, match="must not be empty"):
+            self._props(degradation_yearly=[])
+
+    def test_out_of_range_entries_rejected(self):
+        with pytest.raises(ValidationError, match="0, 100"):
+            self._props(degradation_yearly=[-1])
+        with pytest.raises(ValidationError, match="0, 100"):
+            self._props(degradation_yearly=[100])
+
+    def test_soc_anchors_rejected(self):
+        with pytest.raises(ValidationError, match="anchor"):
+            self._props(degradation_yearly=[5], soc_anchor_interval_hours=4320)
+
+    def test_optimized_capacity_sizing_rejected(self):
+        sizing = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+        )
+        with pytest.raises(ValidationError, match="optimizer-sized"):
+            self._props(degradation_yearly=[5], capacity_sizing=sizing)
+
+    def test_fixed_capacity_sizing_allowed(self):
+        sizing = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+            reserved=8.0,
+        )
+        props = self._props(degradation_yearly=[5], capacity_sizing=sizing)
+        assert props.degradation_yearly == [5]
+
+    def test_explicit_initial_soc_above_year1_factor_rejected(self):
+        """soc[0] is not bounded by the envelope; the guard mirrors the server."""
+        with pytest.raises(ValidationError, match="year-1"):
+            self._props(degradation_yearly=[60], initial_soc=0.5)
+        with pytest.raises(ValidationError, match="year-1"):
+            self._props(degradation_yearly=[5], initial_soc=1.0)
+
+    def test_explicit_initial_soc_at_year1_factor_allowed(self):
+        props = self._props(degradation_yearly=[60], initial_soc=0.4)
+        assert props.initial_soc == 0.4
+
+    def test_default_initial_soc_adapts_to_year1_factor(self):
+        props = self._props(degradation_yearly=[60])
+        assert props.initial_soc == pytest.approx(0.4)
+        # untouched when the stock default already fits
+        assert self._props(degradation_yearly=[5]).initial_soc == 0.5
+
+
 class TestCzDistributionImport:
     """Tests for the Czech distribution-tariff import device."""
 
