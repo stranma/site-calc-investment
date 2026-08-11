@@ -393,6 +393,21 @@ class TestScenarioBuildRequest:
         assert len(device.properties.price) == 8760
         assert all(p == 50.0 for p in device.properties.price)
 
+    def test_build_request_passes_mip_gap(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(
+            scenario_id=scenario_id,
+            device_type="battery",
+            name="B1",
+            properties={"capacity": 10.0, "max_power": 5.0, "efficiency": 0.9},
+        )
+        request = store.build_request(scenario_id, mip_gap=0.05)
+        assert request.optimization_config.mip_gap == 0.05
+        # default flows through unchanged
+        assert store.build_request(scenario_id).optimization_config.mip_gap == 0.01
+        # out-of-range values clamp to the schema bounds (like solver_timeout)
+        assert store.build_request(scenario_id, mip_gap=0.5).optimization_config.mip_gap == 0.1
+        assert store.build_request(scenario_id, mip_gap=-0.2).optimization_config.mip_gap == 0.0
+
     def test_build_request_solver_timeout_capped(self, store: ScenarioStore, scenario_id: str) -> None:
         store.add_device(
             scenario_id=scenario_id,

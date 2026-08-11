@@ -428,6 +428,7 @@ class ScenarioStore:
         scenario_id: str,
         objective: Literal["maximize_profit", "minimize_cost", "maximize_self_consumption"] = "maximize_profit",
         solver_timeout: int = 300,
+        mip_gap: float = 0.01,
     ) -> InvestmentPlanningRequest:
         """Convert draft scenario to an InvestmentPlanningRequest.
 
@@ -477,6 +478,9 @@ class ScenarioStore:
         opt_config = OptimizationConfig(
             objective=objective,
             time_limit_seconds=min(solver_timeout, 3600),
+            # clamp like solver_timeout: an out-of-range LLM tool call gets
+            # the nearest valid value, not a raw pydantic ValidationError
+            mip_gap=min(max(mip_gap, 0.0), 0.1),
             relax_binary_variables=True,
         )
 

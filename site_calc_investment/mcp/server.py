@@ -203,6 +203,7 @@ def submit_scenario(
     scenario_id: str,
     objective: str = "maximize_profit",
     solver_timeout: int = 300,
+    mip_gap: float = 0.01,
 ) -> dict[str, str]:
     """Submit a draft scenario for optimization.
 
@@ -213,7 +214,10 @@ def submit_scenario(
 
     :param scenario_id: Scenario to submit.
     :param objective: Optimization objective (default: maximize_profit).
-    :param solver_timeout: Solver time limit in seconds (max 900).
+    :param solver_timeout: Solver time limit in seconds (max 3600).
+    :param mip_gap: Relative MIP optimality gap (0.01 = stop within 1% of
+        the optimum, the default; 0 = request a zero gap, proving full
+        optimality unless solver_timeout expires first; max 0.1).
     :returns: Dict with job_id and initial status.
     """
     objective_literal = cast(
@@ -224,6 +228,7 @@ def submit_scenario(
         scenario_id=scenario_id,
         objective=objective_literal,
         solver_timeout=solver_timeout,
+        mip_gap=mip_gap,
     )
     client = _get_client()
     job = client.create_planning_job(request)

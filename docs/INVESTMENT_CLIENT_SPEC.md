@@ -362,6 +362,7 @@ request = InvestmentPlanningRequest(
     optimization_config=OptimizationConfig(
         objective="maximize_profit",
         time_limit_seconds=3600,  # 60 minute maximum
+        mip_gap=0.01,  # stop within 1% of the proven optimum (default)
         relax_binary_variables=True,
     ),
 )
