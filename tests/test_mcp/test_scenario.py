@@ -404,6 +404,9 @@ class TestScenarioBuildRequest:
         assert request.optimization_config.mip_gap == 0.05
         # default flows through unchanged
         assert store.build_request(scenario_id).optimization_config.mip_gap == 0.01
+        # out-of-range values clamp to the schema bounds (like solver_timeout)
+        assert store.build_request(scenario_id, mip_gap=0.5).optimization_config.mip_gap == 0.1
+        assert store.build_request(scenario_id, mip_gap=-0.2).optimization_config.mip_gap == 0.0
 
     def test_build_request_solver_timeout_capped(self, store: ScenarioStore, scenario_id: str) -> None:
         store.add_device(
