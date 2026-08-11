@@ -50,6 +50,16 @@ class OptimizationConfig(BaseModel):
         "maximize_profit", description="Optimization objective"
     )
     time_limit_seconds: int = Field(300, gt=0, le=3600, description="Solver timeout (max 60 minutes)")
+    mip_gap: float = Field(
+        0.01,
+        ge=0.0,
+        le=0.1,
+        description=(
+            "Relative MIP optimality gap the solver may stop at "
+            "(0.01 = accept solutions proven within 1% of the optimum; "
+            "0 = prove full optimality). Smaller gaps solve longer."
+        ),
+    )
     relax_binary_variables: bool = Field(
         True, description="Relax binary CHP variables to continuous (recommended for long horizons)"
     )

@@ -428,6 +428,7 @@ class ScenarioStore:
         scenario_id: str,
         objective: Literal["maximize_profit", "minimize_cost", "maximize_self_consumption"] = "maximize_profit",
         solver_timeout: int = 300,
+        mip_gap: float = 0.01,
     ) -> InvestmentPlanningRequest:
         """Convert draft scenario to an InvestmentPlanningRequest.
 
@@ -477,6 +478,7 @@ class ScenarioStore:
         opt_config = OptimizationConfig(
             objective=objective,
             time_limit_seconds=min(solver_timeout, 3600),
+            mip_gap=mip_gap,
             relax_binary_variables=True,
         )
 

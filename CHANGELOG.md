@@ -5,6 +5,16 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-08-11
+
+### Added
+
+- `OptimizationConfig.mip_gap` (default 0.01): relative MIP optimality
+  gap the solver may stop at (0 = prove full optimality, max 0.1). Also
+  exposed as `mip_gap` on the MCP `submit_scenario` tool. Requires a
+  server that applies the gap (site-calc-server >= the mip_gap fix);
+  older servers accept the field but ignore it.
+
 ## [1.3.1] - 2026-08-10
 
 ### Changed

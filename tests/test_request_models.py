@@ -95,7 +95,25 @@ class TestOptimizationConfig:
 
         assert config.objective == "maximize_profit"
         assert config.time_limit_seconds == 300
+        assert config.mip_gap == 0.01
         assert config.relax_binary_variables is True
+
+    def test_optimization_config_mip_gap_bounds(self):
+        """mip_gap accepts [0, 0.1]; rejects negative and above 0.1."""
+        import pytest
+        from pydantic import ValidationError
+
+        assert OptimizationConfig(mip_gap=0.0).mip_gap == 0.0
+        assert OptimizationConfig(mip_gap=0.1).mip_gap == 0.1
+        with pytest.raises(ValidationError):
+            OptimizationConfig(mip_gap=-0.01)
+        with pytest.raises(ValidationError):
+            OptimizationConfig(mip_gap=0.11)
+
+    def test_mip_gap_serialized_to_wire(self):
+        """The gap must appear in the API payload (it configures the server solver)."""
+        config = OptimizationConfig(mip_gap=0.05)
+        assert config.model_dump()["mip_gap"] == 0.05
 
     def test_optimization_config_objectives(self):
         """Test different objectives."""
