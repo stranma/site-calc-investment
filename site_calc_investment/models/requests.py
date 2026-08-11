@@ -57,7 +57,8 @@ class OptimizationConfig(BaseModel):
         description=(
             "Relative MIP optimality gap the solver may stop at "
             "(0.01 = accept solutions proven within 1% of the optimum; "
-            "0 = prove full optimality). Smaller gaps solve longer."
+            "0 = request a zero gap, proving full optimality unless "
+            "time_limit_seconds expires first). Smaller gaps solve longer."
         ),
     )
     relax_binary_variables: bool = Field(

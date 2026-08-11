@@ -115,6 +115,36 @@ class TestOptimizationConfig:
         config = OptimizationConfig(mip_gap=0.05)
         assert config.model_dump()["mip_gap"] == 0.05
 
+    def test_mip_gap_survives_request_level_wire_serialization(self):
+        """model_dump_for_api() must carry optimization_config.mip_gap end to end."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from site_calc_investment.models.requests import (
+            InvestmentPlanningRequest,
+            Site,
+            TimeSpanInvestment,
+        )
+
+        request = InvestmentPlanningRequest(
+            sites=[
+                Site(
+                    site_id="s1",
+                    devices=[
+                        {
+                            "name": "Grid",
+                            "type": "electricity_import",
+                            "properties": {"price": [50.0] * 24, "max_import": 10.0},
+                        }
+                    ],
+                )
+            ],
+            timespan=TimeSpanInvestment(start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")), intervals=24),
+            optimization_config=OptimizationConfig(mip_gap=0.05),
+        )
+        api_dict = request.model_dump_for_api()
+        assert api_dict["optimization_config"]["mip_gap"] == 0.05
+
     def test_optimization_config_objectives(self):
         """Test different objectives."""
         config1 = OptimizationConfig(objective="maximize_profit")
