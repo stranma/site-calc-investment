@@ -151,11 +151,15 @@ off, use sizing reservations instead (see Section 4.4):
 - `degradation_yearly` -- yearly capacity degradation curve in percent,
   e.g. `[5, 3, 2]` = 5% in year 1, 3% in year 2, 2% in every later year
   (the last entry repeats). Caps the usable stored energy at
-  `capacity * prod(1 - d/100)` via a stepwise per-interval bound; each
-  year's loss applies from the START of the year it occurs (prepend `0`
-  for an undegraded first year). Power ratings are unaffected. Not
-  combinable with SOC anchor points or an optimizer-sized
-  `capacity_sizing` (a fixed `reserved` capacity is fine).
+  `prod(1 - d/100)` times the energy the battery actually has -- the
+  fixed `reserved` energy when `capacity_sizing` is present, otherwise
+  `capacity` -- via a stepwise per-interval bound; each year's loss
+  applies from the START of the year it occurs (prepend `0` for an
+  undegraded first year). `initial_soc` must not exceed the year-1
+  factor (the stock default adapts automatically). Model years are
+  fixed 8760-hour blocks matching the annual-aggregation convention
+  (no leap days). Power ratings are unaffected. Not combinable with SOC
+  anchor points or an optimizer-sized `capacity_sizing`.
 
 #### 4.2.2 CHP
 
@@ -858,6 +862,7 @@ plot_sensitivity(discount_rates, npvs, xlabel="Discount Rate", ylabel="NPV (€)
 - ✅ Capacity reservations: per-period capacity limits and charges with
   automatic cheapest-tariff assignment
 - ✅ Battery `power_sizing` / `capacity_sizing` (optimizer-sized investment)
+- ✅ Battery `degradation_yearly` (yearly capacity degradation curve)
 - ✅ Czech distribution-tariff import device (`cz_distribution_import`)
 - ✅ Scenario comparison utilities
 - ✅ Annual aggregation functions

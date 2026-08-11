@@ -417,7 +417,7 @@ Get the properties schema for a device type.
 
 | Device Type | Description | Key Properties |
 |-------------|-------------|----------------|
-| `battery` | Battery energy storage | capacity, max_power, efficiency, power_sizing*, capacity_sizing* |
+| `battery` | Battery energy storage | capacity, max_power, efficiency, power_sizing*, capacity_sizing*, degradation_yearly |
 | `chp` | Combined heat and power | gas_input, el_output, heat_output |
 | `heat_accumulator` | Thermal storage | capacity, max_power, efficiency |
 | `photovoltaic_nonsteerable` | Solar PV, produces exactly its profile | power_profile |

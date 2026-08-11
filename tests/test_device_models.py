@@ -562,6 +562,23 @@ class TestBatteryDegradation:
         props = self._props(degradation_yearly=[5], capacity_sizing=sizing)
         assert props.degradation_yearly == [5]
 
+    def test_explicit_initial_soc_above_year1_factor_rejected(self):
+        """soc[0] is not bounded by the envelope; the guard mirrors the server."""
+        with pytest.raises(ValidationError, match="year-1"):
+            self._props(degradation_yearly=[60], initial_soc=0.5)
+        with pytest.raises(ValidationError, match="year-1"):
+            self._props(degradation_yearly=[5], initial_soc=1.0)
+
+    def test_explicit_initial_soc_at_year1_factor_allowed(self):
+        props = self._props(degradation_yearly=[60], initial_soc=0.4)
+        assert props.initial_soc == 0.4
+
+    def test_default_initial_soc_adapts_to_year1_factor(self):
+        props = self._props(degradation_yearly=[60])
+        assert props.initial_soc == pytest.approx(0.4)
+        # untouched when the stock default already fits
+        assert self._props(degradation_yearly=[5]).initial_soc == 0.5
+
 
 class TestCzDistributionImport:
     """Tests for the Czech distribution-tariff import device."""

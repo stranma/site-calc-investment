@@ -52,11 +52,13 @@ class BatteryProperties(BaseModel):
         description=(
             "Yearly capacity degradation curve in percent, e.g. [5, 3, 2] = 5% in "
             "year 1, 3% in year 2, 2% in every later year (the last entry repeats). "
-            "The server caps the usable stored energy at capacity * prod(1 - d/100), "
-            "each year's loss applied from the START of the year it occurs "
-            "(conservative: year 1 already runs at 95% in the example; prepend 0 for "
-            "an undegraded first year). Not combinable with SOC anchor points or an "
-            "optimizer-sized capacity_sizing (a fixed 'reserved' capacity is fine)."
+            "The server caps the usable stored energy at prod(1 - d/100) times the "
+            "energy the battery actually has (the fixed 'reserved' energy when "
+            "capacity_sizing is present, else capacity). Each year's loss applies "
+            "from the START of the year it occurs (conservative: year 1 already runs "
+            "at 95% in the example; prepend 0 for an undegraded first year). "
+            "initial_soc must not exceed the year-1 factor (the default adapts). Not "
+            "combinable with SOC anchor points or an optimizer-sized capacity_sizing."
         ),
     )
 
@@ -79,6 +81,20 @@ class BatteryProperties(BaseModel):
                     "capacity_sizing (the degraded ceiling is absolute MWh and may "
                     "exceed the built energy); fix the reserved capacity or drop the curve"
                 )
+            # soc[0] is not bounded by the degradation envelope: starting
+            # above the year-1 factor would mint energy the degraded battery
+            # cannot hold (or make the model infeasible). Reject an explicit
+            # conflict; adapt the stock default.
+            year1_factor = 1.0 - curve[0] / 100.0
+            if "initial_soc" in self.model_fields_set:
+                if self.initial_soc > year1_factor + 1e-9:
+                    raise ValueError(
+                        f"initial_soc ({self.initial_soc}) exceeds the year-1 degraded "
+                        f"capacity factor ({year1_factor}); the battery cannot start "
+                        f"holding more energy than degradation allows"
+                    )
+            else:
+                self.initial_soc = min(self.initial_soc, year1_factor)
         return self
 
     @model_validator(mode="after")
