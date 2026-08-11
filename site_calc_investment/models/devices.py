@@ -50,8 +50,10 @@ class BatteryProperties(BaseModel):
     degradation_yearly: Optional[List[float]] = Field(
         None,
         description=(
-            "Yearly capacity degradation curve in percent, e.g. [5, 3, 2] = 5% in "
-            "year 1, 3% in year 2, 2% in every later year (the last entry repeats). "
+            "Yearly capacity degradation curve in percent, one entry per model "
+            "year: [5, 3, 2] = 5% in year 1, 3% in year 2, 2% in year 3. The curve "
+            "must cover every year of the horizon (a longer curve is allowed; the "
+            "extra entries are ignored). "
             "The server caps the usable stored energy at prod(1 - d/100) times the "
             "energy the battery actually has (the fixed 'reserved' energy when "
             "capacity_sizing is present, else capacity). Each year's loss applies "

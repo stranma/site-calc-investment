@@ -615,8 +615,10 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "type": "list[float]",
                     "required": False,
                     "description": (
-                        "Yearly capacity degradation in percent, e.g. [5, 3, 2] = 5% in "
-                        "year 1, 3% in year 2, 2% every later year (last entry repeats). "
+                        "Yearly capacity degradation in percent, one entry per model "
+                        "year: [5, 3, 2] = 5% in year 1, 3% in year 2, 2% in year 3. "
+                        "The curve must cover every year of the horizon (longer is "
+                        "allowed, extras ignored). "
                         "Caps usable stored energy at prod(1 - d/100) times the energy "
                         "the battery actually has (fixed reserved energy when "
                         "capacity_sizing is present, else capacity); each year's loss "
