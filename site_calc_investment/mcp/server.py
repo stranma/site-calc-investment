@@ -606,6 +606,18 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                         "[{'name': 'capex', 'reserved_price': 30000, 'peak_price': 0}]}"
                     ),
                 },
+                "degradation_yearly": {
+                    "type": "list[float]",
+                    "required": False,
+                    "description": (
+                        "Yearly capacity degradation in percent, e.g. [5, 3, 2] = 5% in "
+                        "year 1, 3% in year 2, 2% every later year (last entry repeats). "
+                        "Caps usable stored energy at capacity * prod(1 - d/100); each "
+                        "year's loss applies from the start of the year it occurs "
+                        "(prepend 0 for an undegraded first year). Not combinable with "
+                        "SOC anchors or an optimizer-sized capacity_sizing."
+                    ),
+                },
             },
             "supports_schedule": True,
             "example": {

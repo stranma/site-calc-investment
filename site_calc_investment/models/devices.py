@@ -47,6 +47,39 @@ class BatteryProperties(BaseModel):
             "unless 'reserved' fixes the capacity"
         ),
     )
+    degradation_yearly: Optional[List[float]] = Field(
+        None,
+        description=(
+            "Yearly capacity degradation curve in percent, e.g. [5, 3, 2] = 5% in "
+            "year 1, 3% in year 2, 2% in every later year (the last entry repeats). "
+            "The server caps the usable stored energy at capacity * prod(1 - d/100), "
+            "each year's loss applied from the START of the year it occurs "
+            "(conservative: year 1 already runs at 95% in the example; prepend 0 for "
+            "an undegraded first year). Not combinable with SOC anchor points or an "
+            "optimizer-sized capacity_sizing (a fixed 'reserved' capacity is fine)."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_degradation(self) -> "BatteryProperties":
+        """Mirror the server's rules for the degradation curve."""
+        curve = self.degradation_yearly
+        if curve is not None:
+            if len(curve) == 0:
+                raise ValueError("degradation_yearly must not be empty")
+            if any(not 0 <= d < 100 for d in curve):
+                raise ValueError(f"degradation_yearly values must be in [0, 100), got {curve}")
+            if self.soc_anchor_interval_hours is not None:
+                raise ValueError(
+                    "degradation_yearly cannot be combined with SOC anchor points (soc_anchor_interval_hours)"
+                )
+            if self.capacity_sizing is not None and self.capacity_sizing.reserved is None:
+                raise ValueError(
+                    "degradation_yearly cannot be combined with an optimizer-sized "
+                    "capacity_sizing (the degraded ceiling is absolute MWh and may "
+                    "exceed the built energy); fix the reserved capacity or drop the curve"
+                )
+        return self
 
     @model_validator(mode="after")
     def validate_capacity_sizing(self) -> "BatteryProperties":

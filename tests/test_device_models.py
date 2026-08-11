@@ -516,6 +516,53 @@ class TestCapacityReservation:
             )
 
 
+class TestBatteryDegradation:
+    """Tests for the yearly degradation curve on BatteryProperties."""
+
+    def _props(self, **extra):
+        return BatteryProperties(capacity=10.0, max_power=5.0, efficiency=0.9, **extra)
+
+    def test_curve_accepted_and_serialized(self):
+        props = self._props(degradation_yearly=[5, 3, 2])
+        assert props.degradation_yearly == [5, 3, 2]
+        assert props.model_dump()["degradation_yearly"] == [5, 3, 2]
+
+    def test_zero_and_fractional_entries_accepted(self):
+        props = self._props(degradation_yearly=[0, 2.5])
+        assert props.degradation_yearly == [0, 2.5]
+
+    def test_empty_curve_rejected(self):
+        with pytest.raises(ValidationError, match="must not be empty"):
+            self._props(degradation_yearly=[])
+
+    def test_out_of_range_entries_rejected(self):
+        with pytest.raises(ValidationError, match="0, 100"):
+            self._props(degradation_yearly=[-1])
+        with pytest.raises(ValidationError, match="0, 100"):
+            self._props(degradation_yearly=[100])
+
+    def test_soc_anchors_rejected(self):
+        with pytest.raises(ValidationError, match="anchor"):
+            self._props(degradation_yearly=[5], soc_anchor_interval_hours=4320)
+
+    def test_optimized_capacity_sizing_rejected(self):
+        sizing = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+        )
+        with pytest.raises(ValidationError, match="optimizer-sized"):
+            self._props(degradation_yearly=[5], capacity_sizing=sizing)
+
+    def test_fixed_capacity_sizing_allowed(self):
+        sizing = CapacityReservation(
+            periods="horizon",
+            tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
+            reserved=8.0,
+        )
+        props = self._props(degradation_yearly=[5], capacity_sizing=sizing)
+        assert props.degradation_yearly == [5]
+
+
 class TestCzDistributionImport:
     """Tests for the Czech distribution-tariff import device."""
 

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `BatteryProperties.degradation_yearly`: yearly capacity degradation
+  curve in percent, e.g. `[5, 3, 2]` = 5% in year 1, 3% in year 2, 2%
+  in every later year (the last entry repeats). The server expands it
+  to a stepwise cap on usable stored energy
+  (`capacity * prod(1 - d/100)`); each year's loss applies from the
+  start of the year it occurs -- prepend `0` for an undegraded first
+  year. Not combinable with SOC anchor points or an optimizer-sized
+  `capacity_sizing` (a fixed `reserved` capacity is fine). Requires
+  site-calc-server >= 1.4.0 with the degradation feature.
 - `OptimizationConfig.mip_gap` (default 0.01): relative MIP optimality
   gap the solver may stop at (0 = prove full optimality, max 0.1). Also
   exposed as `mip_gap` on the MCP `submit_scenario` tool. Coordinated
