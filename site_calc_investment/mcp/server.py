@@ -566,7 +566,12 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "required": False,
                     "default": 0.5,
                     "range": "0-1",
-                    "description": "Initial state of charge",
+                    "description": (
+                        "Initial state of charge. With degradation_yearly, an omitted "
+                        "value defaults to min(0.5, year-1 factor); an explicit value "
+                        "above the year-1 factor is rejected. With an optimizer-sized "
+                        "capacity_sizing, an omitted value defaults to 0."
+                    ),
                 },
                 "soc_anchor_interval_hours": {
                     "type": "int",
