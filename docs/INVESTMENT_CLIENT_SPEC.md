@@ -150,9 +150,11 @@ off, use sizing reservations instead (see Section 4.4):
   be set above 0 (fix `reserved` to keep a non-zero initial SOC).
 - `degradation_yearly` -- yearly capacity degradation curve in percent,
   one entry per model year: `[5, 3, 2]` = 5% in year 1, 3% in year 2,
-  2% in year 3. The curve must cover every year of the horizon (a
-  longer curve is allowed; extra entries are ignored -- a full-lifetime
-  curve can serve shorter runs). Caps the usable stored energy at
+  2% in year 3. The curve must include at least one entry for every
+  model year in the horizon; shorter curves are rejected rather than
+  extended by repeating or filling from the last entry. Longer curves
+  are allowed and extra entries are ignored -- a full-lifetime curve can
+  serve shorter runs. Caps the usable stored energy at
   `prod(1 - d/100)` times the energy the battery actually has -- the
   fixed `reserved` energy when `capacity_sizing` is present, otherwise
   `capacity` -- via a stepwise per-interval bound; each year's loss
