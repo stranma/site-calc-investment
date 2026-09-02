@@ -104,6 +104,40 @@ def _load_json(file_path: str) -> list[float]:
         raise ValueError(f"JSON file '{file_path}' contains non-numeric values: {e}") from e
 
 
+_CANDIDATE_DELIMITERS = ",;\t|"
+
+
+def _sniff(sample: str) -> tuple[Any, bool]:
+    """Detect the CSV dialect and whether the first row is a header.
+
+    A single-column file has no delimiter anywhere. ``csv.Sniffer`` then either
+    raises ``csv.Error`` (recent CPython releases) or, worse, elects a digit
+    that recurs on every line as the delimiter and silently splits the
+    numbers. Such files are detected up front (no line contains a plausible
+    delimiter) and read with the excel dialect; the header is decided by
+    whether the first cell parses as a number.
+    """
+    lines = [line for line in sample.splitlines() if line.strip()]
+    single_column = bool(lines) and not any(ch in line for line in lines for ch in _CANDIDATE_DELIMITERS)
+    if single_column:
+        first_cell = lines[0].strip()
+        try:
+            float(first_cell)
+            return csv.excel, False
+        except ValueError:
+            return csv.excel, True
+    sniffer = csv.Sniffer()
+    try:
+        dialect: Any = sniffer.sniff(sample)
+    except csv.Error:
+        dialect = csv.excel
+    try:
+        has_header = sniffer.has_header(sample)
+    except csv.Error:
+        has_header = False
+    return dialect, has_header
+
+
 def _load_csv(file_path: str, column: Optional[str] = None) -> list[float]:
     """Load numeric data from a CSV file.
 
@@ -114,12 +148,7 @@ def _load_csv(file_path: str, column: Optional[str] = None) -> list[float]:
         sample = f.read(8192)
         f.seek(0)
 
-        try:
-            dialect = csv.Sniffer().sniff(sample)
-        except csv.Error:
-            dialect = csv.excel  # type: ignore[assignment]
-
-        has_header = csv.Sniffer().has_header(sample)
+        dialect, has_header = _sniff(sample)
         f.seek(0)
 
         reader = csv.reader(f, dialect)
@@ -253,12 +282,7 @@ def _get_csv_metadata(file_path: str) -> dict[str, Any]:
         sample = f.read(8192)
         f.seek(0)
 
-        try:
-            dialect = csv.Sniffer().sniff(sample)
-        except csv.Error:
-            dialect = csv.excel  # type: ignore[assignment]
-
-        has_header = csv.Sniffer().has_header(sample)
+        dialect, has_header = _sniff(sample)
         f.seek(0)
 
         reader = csv.reader(f, dialect)
