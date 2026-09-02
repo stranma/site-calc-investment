@@ -17,6 +17,8 @@ from site_calc_investment.models.devices import (
     ElectricityDemand,
     ElectricityExport,
     ElectricityImport,
+    ElectricityImportWithOverflow,
+    ElectricityImportWithOverflowProperties,
     FixedConsumption,
     FixedProduction,
     FixedProfileProperties,
@@ -116,6 +118,7 @@ DEVICE_TYPE_MAP: dict[str, str] = {
     "gas_import": "gas_import",
     "heat_export": "heat_export",
     "cz_distribution_import": "cz_distribution_import",
+    "electricity_import_with_overflow": "electricity_import_with_overflow",
 }
 
 VALID_DEVICE_TYPES: set[str] = set(DEVICE_TYPE_MAP.keys())
@@ -212,6 +215,13 @@ def _build_device(config: DeviceConfig, expected_length: Optional[int]) -> Any:
     elif dtype == "heat_export":
         props["price"] = resolve_price_or_profile(props["price"], expected_length)
         return HeatExport(name=config.name, properties=HeatExportProperties(**props), investment=investment)
+
+    elif dtype == "electricity_import_with_overflow":
+        props["import_price"] = resolve_price_or_profile(props["import_price"], expected_length)
+        props["overflow_price"] = resolve_price_or_profile(props["overflow_price"], expected_length)
+        return ElectricityImportWithOverflow(
+            name=config.name, properties=ElectricityImportWithOverflowProperties(**props), investment=investment
+        )
 
     elif dtype == "cz_distribution_import":
         props["price"] = resolve_price_or_profile(props["price"], expected_length)
@@ -602,6 +612,17 @@ def _device_summary(config: DeviceConfig) -> str:
         price_str = _price_summary(price)
         reservation_str = ", capacity reservation" if props.get("capacity_reservation") else ""
         return f"max {max_imp} MW, {price_str}{reservation_str}"
+
+    elif dtype == "electricity_import_with_overflow":
+        max_imp = props.get("max_import", "?")
+        max_ovf = props.get("max_overflow")
+        max_ovf = max_imp if max_ovf is None else max_ovf
+        mode = "one direction per hour" if props.get("no_simultaneous_flow", True) else "directions may overlap"
+        return (
+            f"import max {max_imp} MW at {_price_summary(props.get('import_price'))}, "
+            f"overflow max {max_ovf} MW at {_price_summary(props.get('overflow_price'))} ({mode}); "
+            f"results list the export leg as '{config.name}_overflow'"
+        )
 
     elif dtype == "cz_distribution_import":
         max_imp = props.get("max_import", "?")

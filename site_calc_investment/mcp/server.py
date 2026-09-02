@@ -72,7 +72,8 @@ def add_device(
     fixed_production, max_power_production,
     fixed_consumption, max_power_consumption,
     electricity_import, electricity_export, gas_import, heat_export,
-    cz_distribution_import, electricity_demand, heat_demand.
+    cz_distribution_import, electricity_import_with_overflow,
+    electricity_demand, heat_demand.
 
     Properties support data shorthand for large arrays:
     - A number (e.g., 50.0) is expanded to a flat array matching the timespan
@@ -828,7 +829,8 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                         "Per-period capacity limit and charge on the import flow. "
                         "Example: {'periods': 'calendar_month', 'reserved': 5.0, 'tariffs': "
                         "[{'name': 'T1', 'reserved_price': 80000, 'peak_price': 30000}]}. "
-                        "For the Czech distribution tariff prefer cz_distribution_import"
+                        "For the Czech distribution tariff prefer cz_distribution_import; for a net-metered "
+                        "connection with a separate overflow price prefer electricity_import_with_overflow"
                     ),
                 },
             },
@@ -856,6 +858,16 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "description": (
                         "Per-period capacity limit and charge on the export flow. "
                         "Same structure as on electricity_import"
+                    ),
+                },
+                "exclusive_with": {
+                    "type": "str",
+                    "required": False,
+                    "description": (
+                        "Name of the electricity_import (or cz_distribution_import) in this scenario sharing "
+                        "the connection point. The pair never imports and exports in the same hour (net "
+                        "metering). Set max_export and the import's max_import to the real connection "
+                        "capacity when pairing. For the common case prefer electricity_import_with_overflow"
                     ),
                 },
             },
@@ -937,6 +949,61 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                 "t2_peak_price": 95000,
                 "reserved_capacity": None,
             },
+        },
+        "electricity_import_with_overflow": {
+            "device_type": "electricity_import_with_overflow",
+            "description": (
+                "Net-metered grid connection: consumption billed at import_price, the surplus fed back paid at "
+                "overflow_price. The connection is either importing or exporting in any hour, never both. "
+                "Sent to the API as an electricity_import named after the device plus an electricity_export "
+                "named <name>_overflow; results contain two device schedules"
+            ),
+            "properties": {
+                "import_price": {
+                    "type": "float | list[float] | {file: str}",
+                    "required": True,
+                    "unit": "EUR/MWh",
+                    "description": "Price paid for imported energy. Supports: flat value, array, or {file: 'path.csv'}",
+                },
+                "overflow_price": {
+                    "type": "float | list[float] | {file: str}",
+                    "required": True,
+                    "unit": "EUR/MWh",
+                    "description": "Price received for the surplus fed to the grid. Same shorthand as import_price",
+                },
+                "max_import": {
+                    "type": "float",
+                    "required": True,
+                    "unit": "MW",
+                    "description": "Connection capacity for import. Use the real value, not a placeholder",
+                },
+                "max_overflow": {
+                    "type": "float",
+                    "required": False,
+                    "unit": "MW",
+                    "description": "Connection capacity for the surplus fed back; defaults to max_import",
+                },
+                "no_simultaneous_flow": {
+                    "type": "bool",
+                    "required": False,
+                    "default": True,
+                    "description": (
+                        "True: either import or export per hour (what the meter settles). False: the two "
+                        "directions may overlap within an hour, which overstates revenue whenever the overflow "
+                        "price is above the import price"
+                    ),
+                },
+                "capacity_reservation": {
+                    "type": "dict (CapacityReservation)",
+                    "required": False,
+                    "description": (
+                        "Per-period capacity limit and charge on the import side; "
+                        "same structure as on electricity_import"
+                    ),
+                },
+            },
+            "supports_schedule": False,
+            "example": {"import_price": 90.0, "overflow_price": 60.0, "max_import": 2.0},
         },
         "gas_import": {
             "device_type": "gas_import",

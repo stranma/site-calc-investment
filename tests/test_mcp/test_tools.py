@@ -354,6 +354,8 @@ class TestGetDeviceSchema:
             "heat_export",
             "electricity_demand",
             "heat_demand",
+            "cz_distribution_import",
+            "electricity_import_with_overflow",
         ]
         for dtype in types:
             schema = mcp_server.get_device_schema(dtype)

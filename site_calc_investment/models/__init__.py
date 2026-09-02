@@ -21,6 +21,8 @@ from site_calc_investment.models.devices import (
     ElectricityDemand,
     ElectricityExport,
     ElectricityImport,
+    ElectricityImportWithOverflow,
+    ElectricityImportWithOverflowProperties,
     FixedConsumption,
     FixedProduction,
     FixedProfileProperties,
@@ -84,6 +86,7 @@ __all__ = [
     "GasImportProperties",
     "HeatExportProperties",
     "CzDistributionImportProperties",
+    "ElectricityImportWithOverflowProperties",
     # Schedule
     "Schedule",
     # Devices
@@ -104,6 +107,7 @@ __all__ = [
     "GasImport",
     "HeatExport",
     "CzDistributionImport",
+    "ElectricityImportWithOverflow",
     "Device",
     # Request models
     "Site",

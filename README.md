@@ -115,6 +115,7 @@ print(f"Profit: €{result.summary.expected_profit:,.2f}")
 - Electricity Demand
 - Electricity Import/Export (market interface; optional `capacity_reservation` for per-period grid capacity tariffs)
 - Czech Distribution Import (`cz_distribution_import`: electricity import billed under the Czech monthly T1/T2 capacity tariff)
+- Import with Overflow (`electricity_import_with_overflow`: net-metered grid connection, consumption billed at the import price and the surplus paid at the overflow price; either importing or exporting in any hour, never both)
 - Gas Import (market interface)
 - Heat Export (market interface)
 
