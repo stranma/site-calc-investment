@@ -13,7 +13,8 @@ Three parts:
 3. Why the pairing matters: the number the service would report without it.
 
 Parts 1-3 run offline and print the exact payload sent to the service. The
-optional submission at the end needs INVESTMENT_API_URL and INVESTMENT_API_KEY.
+optional submission at the end needs INVESTMENT_API_URL and INVESTMENT_API_KEY
+and a service at API version 1.5 or newer (older services ignore the pairing).
 """
 
 import json
@@ -141,6 +142,9 @@ def submit(site: Site, label: str) -> None:
         job = client.create_planning_job(request)
         result = client.wait_for_completion(job.job_id, poll_interval=3, timeout=300)
     flows = result.sites[site.site_id].grid_flows
+    if not flows:
+        print(f"  {label}: the result carries no grid flows")
+        return
     imported = flows["import"]
     exported = [-x for x in flows["export"]]  # export flows are reported as negative values
     both = [h for h in range(HOURS) if imported[h] > 1e-6 and exported[h] > 1e-6]

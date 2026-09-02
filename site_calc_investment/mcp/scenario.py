@@ -4,6 +4,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, cast
 
+from pydantic import ValidationError as PydanticValidationError
+
 from site_calc_investment.models.capacity import DeviceInvestment
 from site_calc_investment.models.common import Resolution
 from site_calc_investment.models.devices import (
@@ -122,6 +124,64 @@ DEVICE_TYPE_MAP: dict[str, str] = {
 }
 
 VALID_DEVICE_TYPES: set[str] = set(DEVICE_TYPE_MAP.keys())
+
+_PROPERTY_MODELS: dict[str, Any] = {
+    "battery": BatteryProperties,
+    "chp": CHPProperties,
+    "heat_accumulator": HeatAccumulatorProperties,
+    "photovoltaic_nonsteerable": FixedProfileProperties,
+    "photovoltaic_steerable": PhotovoltaicSteerableProperties,
+    "fixed_production": FixedProfileProperties,
+    "max_power_production": MaxPowerProductionProperties,
+    "fixed_consumption": FixedProfileProperties,
+    "max_power_consumption": MaxPowerConsumptionProperties,
+    "heat_demand": DemandProperties,
+    "electricity_demand": DemandProperties,
+    "electricity_import": MarketImportProperties,
+    "electricity_export": MarketExportProperties,
+    "gas_import": GasImportProperties,
+    "heat_export": HeatExportProperties,
+    "cz_distribution_import": CzDistributionImportProperties,
+    "electricity_import_with_overflow": ElectricityImportWithOverflowProperties,
+}
+
+_IMPORT_TYPES = ("electricity_import", "cz_distribution_import")
+
+
+def _validate_properties_shape(dtype: str, name: str, properties: dict[str, Any]) -> None:
+    """Input-time checks that need no timespan: a misplaced pairing field, unknown keys.
+
+    Full validation (array lengths, pairing targets, derived names) runs in
+    ``review`` and ``build_request`` once the timespan is known.
+    """
+    if not isinstance(properties, dict):
+        raise ValueError(f"Device '{name}': properties must be a dict, got {type(properties).__name__}.")
+    if "exclusive_with" in properties and dtype != "electricity_export":
+        if dtype in _IMPORT_TYPES:
+            hint = f"put exclusive_with on the electricity_export and name this device ('{name}') from there"
+        else:
+            hint = "it is only valid on electricity_export"
+        raise ValueError(f"Device '{name}': exclusive_with does not belong on a {dtype}; {hint}.")
+    model = _PROPERTY_MODELS.get(dtype)
+    if model is None or model.model_config.get("extra") != "forbid":
+        return
+    unknown = sorted(set(properties) - set(model.model_fields))
+    if unknown:
+        noun = "property" if len(unknown) == 1 else "properties"
+        raise ValueError(
+            f"Device '{name}': unknown {noun} {unknown} for {dtype}. "
+            f"Valid: {sorted(model.model_fields)}. Use get_device_schema('{dtype}')."
+        )
+
+
+def _first_error_message(error: Exception) -> str:
+    """Human-readable first message of a validation failure."""
+    if isinstance(error, PydanticValidationError):
+        details = error.errors()
+        if details:
+            message = str(details[0].get("msg", error))
+            return message.removeprefix("Value error, ")
+    return str(error)
 
 
 def _build_schedule(schedule_dict: Optional[dict[str, Any]]) -> Optional[Schedule]:
@@ -307,6 +367,8 @@ class ScenarioStore:
                     "Choose another name."
                 )
 
+        _validate_properties_shape(dtype, name, properties)
+
         if investment is not None:
             # Validate eagerly so a typo ({"capex": 1}) or wrong type fails
             # here at input time, not at submit time in _build_device.
@@ -431,6 +493,13 @@ class ScenarioStore:
             errors.append("No devices added")
         if not scenario.timespan:
             errors.append("No timespan set")
+        if scenario.devices and scenario.timespan:
+            # Run the full request build so pairing targets, derived names
+            # and array lengths are reported here, not first at submit.
+            try:
+                self.build_request(scenario_id)
+            except (ValueError, PydanticValidationError) as e:
+                errors.append(f"Invalid scenario: {_first_error_message(e)}")
 
         validation = "Valid -- ready to submit" if not errors else f"Not ready: {'; '.join(errors)}"
 
@@ -645,10 +714,13 @@ def _device_summary(config: DeviceConfig) -> str:
 
     elif dtype in ("electricity_export", "heat_export"):
         max_exp = props.get("max_export", "?")
+        pairing_str = (
+            f", paired with '{props['exclusive_with']}' (one direction per hour)" if props.get("exclusive_with") else ""
+        )
         price = props.get("price")
         price_str = _price_summary(price)
         reservation_str = ", capacity reservation" if props.get("capacity_reservation") else ""
-        return f"max {max_exp} MW, {price_str}{reservation_str}"
+        return f"max {max_exp} MW, {price_str}{reservation_str}{pairing_str}"
 
     return f"{dtype} device"
 

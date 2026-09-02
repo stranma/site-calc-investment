@@ -384,7 +384,10 @@ class ElectricityImportWithOverflowProperties(BaseModel):
     )
     no_simultaneous_flow: bool = Field(
         True,
-        description="Either import or export per interval (the meter's behaviour); False relaxes the rule",
+        description=(
+            "True: either import or export per interval (what the meter settles). "
+            "False: sends the same two devices without the pairing, for comparison runs only"
+        ),
     )
     capacity_reservation: Optional[CapacityReservation] = Field(
         None, description="Optional per-period capacity limit and charge on the import side"

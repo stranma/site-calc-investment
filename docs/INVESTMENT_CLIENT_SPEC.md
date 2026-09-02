@@ -272,8 +272,9 @@ the one-direction rule. A hand-built `ElectricityExport` can pair with an
   whole load at the import price in the same hour, which no meter settles.
   For PV 1.0 MW, load 0.6 MW, import 90 and overflow 120 EUR/MWh that is
   66 EUR reported against 48 EUR metered, and the error repeats in every such
-  hour. It also makes a CHP look profitable when it is not and undervalues
-  battery discharge.
+  hour. It also makes a CHP look profitable when it is not and lets a
+  battery earn the price gap by charging from the import and selling to the
+  export in the same hour, which no meter allows.
 - `ElectricityImportWithOverflow` is the pre-wired form: one device, sent as
   the import named after it plus an export named `<name>_overflow` that is
   paired with it. `no_simultaneous_flow=False` sends the same two devices
@@ -283,11 +284,14 @@ the one-direction rule. A hand-built `ElectricityExport` can pair with an
   `CzDistributionImport` in the same site, and each import can be paired
   with one export. Use this form when the import side needs something the
   overflow device does not expose, such as the Czech T1/T2 tariff menu.
-- Use the real connection capacity for `max_import`, `max_overflow` and
-  `max_export` on paired devices; the service refuses a paired device
-  without an explicit rating.
+- The ratings are mandatory: use the real connection capacity for
+  `max_import`, `max_overflow` and `max_export`, not a placeholder; solve
+  time depends on realistic ratings.
 - Results list both legs: the import under the device's name and the export
   under `<name>_overflow` (or the export's own name for hand-built pairs).
+- Requires the optimization service at API version 1.5 or newer. Against
+  an older service the pairing is silently ignored and the numbers come
+  out as in the unpaired case; call `get_version()` to confirm.
 
 See `examples/04_import_with_overflow.py` for a runnable walk-through.
 

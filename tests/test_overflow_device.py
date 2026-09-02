@@ -142,6 +142,13 @@ class TestWireExpansion:
         assert wire[1]["properties"]["exclusive_with"] == "GridImport"
 
 
+class TestPlainImport:
+    def test_import_rejects_exclusive_with(self) -> None:
+        """The pairing field lives on the export only."""
+        with pytest.raises(ValidationError):
+            MarketImportProperties(price=IMPORT_PRICE, max_import=2.0, exclusive_with="GridExport")
+
+
 class TestSiteValidation:
     def test_derived_overflow_name_must_be_free(self) -> None:
         with pytest.raises(ValidationError, match="Grid_overflow"):

@@ -67,3 +67,36 @@ class TestOverflowSchema:
     def test_electricity_export_schema_lists_the_pairing_field(self) -> None:
         schema = mcp_server.get_device_schema("electricity_export")
         assert schema["properties"]["exclusive_with"]["required"] is False
+
+
+class TestOverflowMcpFeedback:
+    """Mistakes are reported at add time or in review, not first at submit."""
+
+    def test_exclusive_with_on_an_import_is_rejected_at_add_time(self, store: ScenarioStore, scenario_id: str) -> None:
+        with pytest.raises(ValueError, match="put exclusive_with on the electricity_export"):
+            store.add_device(
+                scenario_id, "electricity_import", "Grid", {"price": 50.0, "max_import": 1.0, "exclusive_with": "X"}
+            )
+
+    def test_unknown_property_is_rejected_at_add_time(self, store: ScenarioStore, scenario_id: str) -> None:
+        with pytest.raises(ValueError, match="unknown property"):
+            _add_sugar(store, scenario_id, price=1.0)
+
+    def test_hand_built_pairing_through_the_store(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(scenario_id, "electricity_import", "DSO", {"price": 50.0, "max_import": 2.0})
+        summary = store.add_device(
+            scenario_id, "electricity_export", "Overflow", {"price": 80.0, "max_export": 2.0, "exclusive_with": "DSO"}
+        )
+        assert "paired with 'DSO'" in summary
+        wire = store.build_request(scenario_id).model_dump_for_api()["sites"][0]["devices"]
+        assert wire[1]["properties"]["exclusive_with"] == "DSO"
+        assert store.review(scenario_id)["validation"].startswith("Valid")
+
+    def test_review_reports_a_missing_pairing_target(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(scenario_id, "electricity_import", "DSO", {"price": 50.0, "max_import": 2.0})
+        store.add_device(
+            scenario_id, "electricity_export", "Overflow", {"price": 80.0, "max_export": 2.0, "exclusive_with": "Nope"}
+        )
+        validation = store.review(scenario_id)["validation"]
+        assert validation.startswith("Not ready")
+        assert "Nope" in validation

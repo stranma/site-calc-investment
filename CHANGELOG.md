@@ -23,9 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `exclusive_with` on an `electricity_export` may target only an
   `electricity_import` or a `cz_distribution_import`. Pairing with an
   `electricity_import_with_overflow` device (which already carries its own
-  export leg) is now rejected, relaxed or not; 1.5.0 accepted the relaxed
-  case, which produced a second export on the same meter with no clear
-  meaning.
+  export leg) is now rejected whether or not `no_simultaneous_flow` is set;
+  1.5.0 accepted the `no_simultaneous_flow=False` case, which produced a
+  second export on the same meter with no clear meaning.
+- MCP: `add_device` rejects a misplaced `exclusive_with` (it belongs on the
+  export) and unknown property keys at input time; `review_scenario` runs
+  the full scenario validation (pairing targets, derived names, array
+  lengths) and reports problems instead of "Valid"; export summaries show
+  their pairing target.
+- `DeviceSchedule`/`SiteResult.grid_flows` description states that export
+  flows are reported as negative values.
 
 ## [1.5.0] - 2026-09-02
 

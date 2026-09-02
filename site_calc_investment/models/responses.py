@@ -89,7 +89,13 @@ class SiteResult(BaseModel):
     """Optimization results for a single site."""
 
     device_schedules: Dict[str, DeviceSchedule] = Field(..., description="Device schedules keyed by device name")
-    grid_flows: Optional[Dict[str, List[float]]] = Field(None, description="Grid import/export flows")
+    grid_flows: Optional[Dict[str, List[float]]] = Field(
+        None,
+        description=(
+            "Grid flows per interval (MW): 'import' is positive, 'export' is reported as negative "
+            "values (energy leaving the site)"
+        ),
+    )
 
 
 class InvestmentMetrics(BaseModel):

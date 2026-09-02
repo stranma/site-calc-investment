@@ -36,7 +36,6 @@ class Site(BaseModel):
                         f"Device '{derived}' clashes with the export derived from '{d.name}'; rename one of them"
                     )
                 taken.add(derived)
-                paired[d.name] = derived
         by_name = {d.name: d for d in v}
         for d in v:
             if d.type != "electricity_export" or d.properties.exclusive_with is None:

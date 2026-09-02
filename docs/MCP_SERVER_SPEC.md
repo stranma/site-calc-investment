@@ -469,7 +469,9 @@ Properties marked `*` are optional capacity-reservation features:
   API as an `electricity_import` named after the device plus an
   `electricity_export` named `<name>_overflow`, so `get_job_result` lists
   two device schedules for it. A plain `electricity_export` can pair with
-  an import the same way via `exclusive_with` (the import's name).
+  an import the same way via `exclusive_with` (the import's name). If the
+  buy and sell prices differ, model the connection this way rather than as
+  an unpaired `electricity_import` + `electricity_export` pair.
 
 Use `get_device_schema(device_type)` for full property documentation.
 
