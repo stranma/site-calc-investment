@@ -104,14 +104,28 @@ def _load_json(file_path: str) -> list[float]:
         raise ValueError(f"JSON file '{file_path}' contains non-numeric values: {e}") from e
 
 
+_CANDIDATE_DELIMITERS = ",;\t|"
+
+
 def _sniff(sample: str) -> tuple[Any, bool]:
     """Detect the CSV dialect and whether the first row is a header.
 
-    ``csv.Sniffer.has_header`` sniffs the delimiter itself, so on a file with
-    a single column (no delimiter anywhere) it raises ``csv.Error`` on recent
-    CPython releases. Fall back to the excel dialect and decide the header by
+    A single-column file has no delimiter anywhere. ``csv.Sniffer`` then either
+    raises ``csv.Error`` (recent CPython releases) or, worse, elects a digit
+    that recurs on every line as the delimiter and silently splits the
+    numbers. Such files are detected up front (no line contains a plausible
+    delimiter) and read with the excel dialect; the header is decided by
     whether the first cell parses as a number.
     """
+    lines = [line for line in sample.splitlines() if line.strip()]
+    single_column = bool(lines) and not any(ch in line for line in lines for ch in _CANDIDATE_DELIMITERS)
+    if single_column:
+        first_cell = lines[0].strip()
+        try:
+            float(first_cell)
+            return csv.excel, False
+        except ValueError:
+            return csv.excel, True
     sniffer = csv.Sniffer()
     try:
         dialect: Any = sniffer.sniff(sample)
@@ -120,13 +134,7 @@ def _sniff(sample: str) -> tuple[Any, bool]:
     try:
         has_header = sniffer.has_header(sample)
     except csv.Error:
-        lines = sample.splitlines()
-        first_cell = lines[0].split(dialect.delimiter)[0].strip() if lines else ""
-        try:
-            float(first_cell)
-            has_header = False
-        except ValueError:
-            has_header = bool(first_cell)
+        has_header = False
     return dialect, has_header
 
 
