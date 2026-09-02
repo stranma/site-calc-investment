@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for AI-assisted work on `site-calc-investment`, the public Python client and MCP server for the Site-Calc investment planning service.
+Guidance for AI-assisted work on `site-calc-investment`, the public Python client for the Site-Calc investment planning service. The Python client library is the product; the MCP server in `site_calc_investment/mcp/` is a secondary add-on for LLM-driven use.
 
 ## Setup and checks
 
@@ -18,12 +18,12 @@ Describe behavior, never the service's internals. Docs, field descriptions, docs
 
 ## Review rule: read it as the user first
 
-The audience is an engineer, or an LLM driving the MCP tools, who wants to model something specific and has only this package to go on: README, `docs/`, field descriptions, `get_device_schema` output, examples, and error messages.
+The audience is an engineer who wants to model something specific with the Python client and has only this package to go on: model field descriptions and docstrings, README, `docs/`, examples, and error messages. LLMs driving the MCP tools are a secondary audience.
 
-Every change that touches models, MCP tool text or schemas, docs, examples, or error messages must be reviewed in this order:
+Every change that touches models, docs, examples, error messages, or MCP tool text or schemas must be reviewed in this order:
 
-1. From the public surfaces alone, write down how a first-time reader would build the feature in each form (Python API, MCP tools, any shortcut device), what each field means, which values are valid, what appears in results. Try the plausible mistakes (field on the wrong device, placeholder values, name collisions, combining two forms) and record what the package tells the reader.
+1. From the public surfaces alone, write down how a first-time reader would build the feature with the Python client (including any shortcut device), what each field means, which values are valid, what appears in results. Try the plausible mistakes (field on the wrong device, placeholder values, name collisions, combining two forms) and record what the package tells the reader. Then do the same for the MCP path, briefly.
 2. Only then read the implementation and check every conclusion against it.
-3. A place where the reader would build the wrong thing, or would learn of a mistake only at submit time instead of at input time, blocks the change. Field descriptions describe what a user should do; they never advertise corners the code merely tolerates.
+3. A place where a Python-client reader would build the wrong thing, or would learn of a mistake only at submit time instead of at construction time, blocks the change. MCP hazards are reported and fixed when cheap. Field descriptions describe what a user should do; they never advertise corners the code merely tolerates.
 
-Keep `docs/INVESTMENT_CLIENT_SPEC.md`, `docs/MCP_SERVER_SPEC.md`, the `get_device_schema` entries, and the Pydantic field descriptions saying the same thing.
+Keep the Pydantic field descriptions, `docs/INVESTMENT_CLIENT_SPEC.md`, the examples, `docs/MCP_SERVER_SPEC.md`, and the `get_device_schema` entries saying the same thing.
