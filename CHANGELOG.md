@@ -5,6 +5,48 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-09-02
+
+> The `electricity_import_with_overflow` device and the `exclusive_with`
+> property require the optimization service at API version 1.5 or newer.
+> Against an older service the pairing is silently ignored and the grid
+> connection behaves like an independent import + export again -- call
+> `get_version()` after upgrading to confirm compatibility.
+
+### Added
+
+- **New device type `electricity_import_with_overflow`**: a net-metered grid
+  connection where consumption is billed at `import_price` and the surplus
+  fed back to the grid is paid at `overflow_price`. The connection is either
+  importing or exporting in any given hour, never both, so the result matches
+  what the meter settles. Without this rule an overflow price above the
+  import price lets the optimizer sell the site's generation and buy the
+  site's load in the same hour, overstating revenue by
+  `min(generation, load) * (overflow_price - import_price)` for every such
+  hour and misjudging CHP and battery dispatch. Properties: `import_price`,
+  `overflow_price` (both accept the scalar / array / file shorthand in the
+  MCP tools), `max_import`, `max_overflow` (defaults to `max_import`),
+  `no_simultaneous_flow` (default `True`; `False` relaxes the one-direction
+  rule), and an optional `capacity_reservation` on the import side.
+  Serialized to the API as an `electricity_import` named after the device
+  plus an `electricity_export` named `<name>_overflow`, so results contain
+  two device schedules for one sugar device.
+- **`exclusive_with` on `electricity_export`**: pair a hand-built export with
+  an `electricity_import` or `cz_distribution_import` in the same site by
+  name to get the same one-direction behavior, e.g. a Czech
+  distribution-tariff import with an overflow export. Validated client-side:
+  the target must exist in the site, be an import, and be paired at most
+  once; a device may not reuse a sugar device's derived `<name>_overflow`
+  name.
+- Paired devices must carry the real connection capacity in `max_import` /
+  `max_overflow` / `max_export`: the service refuses a paired device without
+  an explicit rating, and solve time depends on the ratings being realistic.
+
+### Changed
+
+- `device_to_wire` now returns a list of wire devices (one entry for every
+  existing type, two for `electricity_import_with_overflow`).
+
 ## [1.4.0] - 2026-08-11
 
 ### Added

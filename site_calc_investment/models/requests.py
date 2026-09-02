@@ -5,7 +5,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from site_calc_investment.models.common import Resolution, TimeSpan
-from site_calc_investment.models.devices import Device, device_to_wire
+from site_calc_investment.models.devices import Device, device_to_wire, overflow_device_name
 
 
 class Site(BaseModel):
@@ -22,10 +22,50 @@ class Site(BaseModel):
     @field_validator("devices")
     @classmethod
     def validate_unique_names(cls, v: List[Device]) -> List[Device]:
-        """Ensure all device names are unique within a site."""
+        """Unique names (including derived overflow names) and valid export pairings."""
         names = [d.name for d in v]
         if len(names) != len(set(names)):
             raise ValueError("Device names must be unique within a site")
+        taken = set(names)
+        paired: dict[str, str] = {}
+        for d in v:
+            if d.type == "electricity_import_with_overflow":
+                derived = overflow_device_name(d.name)
+                if derived in taken:
+                    raise ValueError(
+                        f"Device '{derived}' clashes with the export derived from '{d.name}'; rename one of them"
+                    )
+                taken.add(derived)
+                if d.properties.no_simultaneous_flow:
+                    paired[d.name] = derived
+        by_name = {d.name: d for d in v}
+        for d in v:
+            if d.type != "electricity_export" or d.properties.exclusive_with is None:
+                continue
+            target_name = d.properties.exclusive_with
+            target = by_name.get(target_name)
+            if target is None:
+                raise ValueError(
+                    f"Device '{d.name}': exclusive_with references '{target_name}', which is not a device in this site"
+                )
+            # A strict overflow device is already paired with its own derived export;
+            # the "already paired" check below reports that. A relaxed one may pair.
+            is_import = target.type in (
+                "electricity_import",
+                "cz_distribution_import",
+                "electricity_import_with_overflow",
+            )
+            if not is_import:
+                raise ValueError(
+                    f"Device '{d.name}': exclusive_with target '{target_name}' must be an electricity import, "
+                    f"got {target.type}"
+                )
+            if target_name in paired:
+                raise ValueError(
+                    f"Device '{d.name}': import '{target_name}' is already paired with '{paired[target_name]}'; "
+                    "one export per import"
+                )
+            paired[target_name] = d.name
         return v
 
 
@@ -137,5 +177,5 @@ class InvestmentPlanningRequest(BaseModel):
         # Convert timespan to API format
         data["timespan"] = self.timespan.to_api_dict()
         for site in data["sites"]:
-            site["devices"] = [device_to_wire(d) for d in site["devices"]]
+            site["devices"] = [wire for d in site["devices"] for wire in device_to_wire(d)]
         return data

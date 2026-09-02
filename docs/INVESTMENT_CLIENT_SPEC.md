@@ -232,11 +232,41 @@ grid_import = ElectricityImport(
 )
 ```
 
+**Net-metered connection with an overflow price.** When consumption is
+billed at one price and the surplus fed back to the grid is paid at
+another, use `ElectricityImportWithOverflow` instead of a separate
+import + export pair. The connection is either importing or exporting in
+any hour, never both, which is what the meter settles; a free-standing
+pair would otherwise sell the site's generation and buy its load in the
+same hour whenever the overflow price is above the import price.
+
+```python
+from site_calc_investment.models import ElectricityImportWithOverflow
+
+grid = ElectricityImportWithOverflow(
+    name="Grid",
+    properties={
+        "import_price": prices_10y,
+        "overflow_price": [p * 0.7 for p in prices_10y],
+        "max_import": 2.0,  # real connection capacity (MW)
+        "max_overflow": 2.0,  # defaults to max_import
+    },
+)
+```
+
+It is sent to the API as an `electricity_import` named `Grid` plus an
+`electricity_export` named `Grid_overflow` paired with it, so results
+contain two device schedules. Set `no_simultaneous_flow=False` to relax
+the one-direction rule. A hand-built `ElectricityExport` can pair with an
+`ElectricityImport` or `CzDistributionImport` the same way through its
+`exclusive_with` property (the import's name).
+
 Market device properties accept only their documented fields (unknown fields
 raise validation errors):
 
 - `electricity_import`: `price`, `max_import`, optional `capacity_reservation`
-- `electricity_export`: `price`, `max_export`, optional `capacity_reservation`
+- `electricity_export`: `price`, `max_export`, optional `capacity_reservation`,
+  optional `exclusive_with` (name of the paired import)
 - `gas_import`: `price`, `max_import`
 - `heat_export`: `price`, `max_export`
 
@@ -868,6 +898,7 @@ plot_sensitivity(discount_rates, npvs, xlabel="Discount Rate", ylabel="NPV (€)
 - ✅ Battery `power_sizing` / `capacity_sizing` (optimizer-sized investment)
 - ✅ Battery `degradation_yearly` (yearly capacity degradation curve)
 - ✅ Czech distribution-tariff import device (`cz_distribution_import`)
+- ✅ Net-metered import with overflow device (`electricity_import_with_overflow`) and `exclusive_with` pairing on exports
 - ✅ Scenario comparison utilities
 - ✅ Annual aggregation functions
 

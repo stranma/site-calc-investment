@@ -262,6 +262,16 @@ class MarketExportProperties(BaseModel):
     capacity_reservation: Optional[CapacityReservation] = Field(
         None, description="Optional per-period capacity limit and charge on the export flow"
     )
+    exclusive_with: Optional[str] = Field(
+        None,
+        description=(
+            "Name of the electricity_import, cz_distribution_import, or relaxed "
+            "electricity_import_with_overflow in the same site that shares "
+            "this connection point. The pair then never imports and exports in the same interval, "
+            "which is what a net-metered connection settles. Use the real connection capacity for "
+            "max_export and the import's max_import when pairing."
+        ),
+    )
 
 
 class GasImportProperties(BaseModel):
@@ -339,6 +349,63 @@ class CzDistributionImportProperties(BaseModel):
         """Run the full reservation validation on the equivalent generic form."""
         self.to_capacity_reservation()
         return self
+
+
+OVERFLOW_SUFFIX = "_overflow"
+
+
+def overflow_device_name(name: str) -> str:
+    """Name of the export device derived from an ``electricity_import_with_overflow``."""
+    return f"{name}{OVERFLOW_SUFFIX}"
+
+
+class ElectricityImportWithOverflowProperties(BaseModel):
+    """Net-metered grid connection: consumption billed at ``import_price``,
+    the surplus fed back to the grid paid at ``overflow_price``.
+
+    The connection is either importing or exporting in any interval, never
+    both (``no_simultaneous_flow``), so the result matches what the meter
+    settles: without that rule an overflow price above the import price
+    would let the optimizer sell the site's generation and buy the site's
+    load in the same hour. Sent to the API as an ``electricity_import``
+    named after the device plus an ``electricity_export`` named
+    ``<name>_overflow`` that is paired with it; results therefore contain
+    two device schedules for this one device.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    import_price: List[float] = Field(..., min_length=1, description="Price paid for imported energy (EUR/MWh)")
+    overflow_price: List[float] = Field(
+        ..., min_length=1, description="Price received for the surplus fed to the grid (EUR/MWh)"
+    )
+    max_import: float = Field(..., gt=0, description="Connection capacity for import (MW); use the real value")
+    max_overflow: Optional[float] = Field(
+        None, gt=0, description="Connection capacity for the surplus fed back (MW); defaults to max_import"
+    )
+    no_simultaneous_flow: bool = Field(
+        True,
+        description="Either import or export per interval (the meter's behaviour); False relaxes the rule",
+    )
+    capacity_reservation: Optional[CapacityReservation] = Field(
+        None, description="Optional per-period capacity limit and charge on the import side"
+    )
+
+    def to_wire_devices(self, name: str) -> List[Dict[str, Any]]:
+        """The import + export wire devices this device stands for."""
+        import_props: Dict[str, Any] = {"price": self.import_price, "max_import": self.max_import}
+        if self.capacity_reservation is not None:
+            import_props["capacity_reservation"] = self.capacity_reservation.model_dump()
+        export_props: Dict[str, Any] = {
+            "price": self.overflow_price,
+            "max_export": self.max_overflow if self.max_overflow is not None else self.max_import,
+        }
+        if self.no_simultaneous_flow:
+            export_props["exclusive_with"] = name
+        return [
+            {"name": name, "type": "electricity_import", "properties": import_props},
+            {"name": overflow_device_name(name), "type": "electricity_export", "properties": export_props},
+        ]
 
 
 # Schedule Model
@@ -536,6 +603,17 @@ class CzDistributionImport(DeviceBase):
     properties: CzDistributionImportProperties
 
 
+class ElectricityImportWithOverflow(DeviceBase):
+    """Net-metered grid connection with a separate overflow price.
+
+    Sent to the API as a paired ``electricity_import`` (this device's name)
+    and ``electricity_export`` (``<name>_overflow``).
+    """
+
+    type: Literal["electricity_import_with_overflow"] = "electricity_import_with_overflow"
+    properties: ElectricityImportWithOverflowProperties
+
+
 # Union type for all devices
 Device = Union[
     Battery,
@@ -554,19 +632,32 @@ Device = Union[
     GasImport,
     HeatExport,
     CzDistributionImport,
+    ElectricityImportWithOverflow,
 ]
 
 
-def device_to_wire(device: Dict[str, Any]) -> Dict[str, Any]:
+def device_to_wire(device: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Convert one dumped device dict to its API wire form.
 
-    Strips the client-only ``investment`` block and rewrites the Czech
-    distribution-tariff sugar device into a plain electricity import with
-    the equivalent monthly capacity reservation.
+    Returns a list: one entry for every plain type, two for
+    ``electricity_import_with_overflow``. Strips the client-only
+    ``investment`` block, rewrites the Czech distribution-tariff sugar
+    device into a plain electricity import with the equivalent monthly
+    capacity reservation, expands the overflow sugar device into its
+    paired import + export, and drops an unset ``exclusive_with``.
     """
     device = dict(device)
     device.pop("investment", None)
-    if device.get("type") == "cz_distribution_import":
+    dtype = device.get("type")
+    if dtype == "electricity_import_with_overflow":
+        props = ElectricityImportWithOverflowProperties.model_validate(device["properties"])
+        return props.to_wire_devices(device["name"])
+    if dtype == "electricity_export":
+        properties = dict(device.get("properties", {}))
+        if properties.get("exclusive_with") is None:
+            properties.pop("exclusive_with", None)
+        device["properties"] = properties
+    if dtype == "cz_distribution_import":
         p = device["properties"]
         # Single source of truth for the T1/T2 -> reservation mapping:
         # rebuild the properties model and reuse its own conversion.
@@ -580,4 +671,4 @@ def device_to_wire(device: Dict[str, Any]) -> Dict[str, Any]:
                 "capacity_reservation": reservation.model_dump(),
             },
         }
-    return device
+    return [device]

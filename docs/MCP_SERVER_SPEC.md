@@ -427,8 +427,9 @@ Get the properties schema for a device type.
 | `fixed_consumption` | Consumes exactly its profile | power_profile |
 | `max_power_consumption` | Steerable consumption at a linear value | max_power_profile, value_per_mwh |
 | `electricity_import` | Buy from grid | price, max_import, capacity_reservation* |
-| `electricity_export` | Sell to grid | price, max_export, capacity_reservation* |
+| `electricity_export` | Sell to grid | price, max_export, capacity_reservation*, exclusive_with |
 | `cz_distribution_import` | Buy from grid under the Czech distribution capacity tariff (2027 structure) | price, max_import, t1/t2 prices, reserved_capacity |
+| `electricity_import_with_overflow` | Net-metered grid connection: buy at import_price, surplus paid at overflow_price, one direction per hour | import_price, overflow_price, max_import, max_overflow, no_simultaneous_flow, capacity_reservation* |
 | `gas_import` | Gas supply | price, max_import |
 | `heat_export` | Sell heat | price, max_export |
 | `electricity_demand` | Electricity load | max_demand_profile |
@@ -460,6 +461,15 @@ Properties marked `*` are optional capacity-reservation features:
   size it, `timezone` defaulting to `Europe/Prague`. It is sent to the API as
   a plain `electricity_import` with the equivalent monthly
   `capacity_reservation`.
+- **`electricity_import_with_overflow`**: net-metered grid connection --
+  consumption billed at `import_price`, the surplus fed back paid at
+  `overflow_price`, either importing or exporting in any hour (never both,
+  unless `no_simultaneous_flow` is set to `false`). `max_overflow` defaults
+  to `max_import`; use the real connection capacity for both. Sent to the
+  API as an `electricity_import` named after the device plus an
+  `electricity_export` named `<name>_overflow`, so `get_job_result` lists
+  two device schedules for it. A plain `electricity_export` can pair with
+  an import the same way via `exclusive_with` (the import's name).
 
 Use `get_device_schema(device_type)` for full property documentation.
 
