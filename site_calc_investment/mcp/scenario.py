@@ -568,9 +568,13 @@ class ScenarioStore:
             except PydanticValidationError as e:
                 # Name the device and field: a bare "Field required" is useless
                 # in a scenario with several devices.
-                first = e.errors()[0] if e.errors() else {}
-                location = ".".join(str(part) for part in first.get("loc", ())) or "properties"
-                raise ValueError(f"Device '{dc.name}' ({dc.device_type}): {location}: {first.get('msg', e)}") from e
+                details = e.errors()
+                if details:
+                    location = ".".join(str(part) for part in details[0]["loc"]) or "properties"
+                    message = details[0]["msg"]
+                else:
+                    location, message = "properties", str(e)
+                raise ValueError(f"Device '{dc.name}' ({dc.device_type}): {location}: {message}") from e
             devices.append(device)
 
         site = Site(
