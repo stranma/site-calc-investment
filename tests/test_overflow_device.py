@@ -153,7 +153,7 @@ class TestSiteValidation:
 
     def test_pairing_target_must_be_an_import(self) -> None:
         battery = Battery(name="Bess", properties=BatteryProperties(capacity=2.0, max_power=1.0, efficiency=0.9))
-        with pytest.raises(ValidationError, match="import"):
+        with pytest.raises(ValidationError, match="must be an electricity import"):
             Site(site_id="S", devices=[battery, _plain_import(), _plain_export("Bess")])
 
     def test_plain_export_may_pair_with_a_cz_distribution_import(self) -> None:
@@ -178,5 +178,7 @@ class TestSiteValidation:
             Site(site_id="S", devices=[_sugar(), _plain_export("Grid")])
 
     def test_relaxed_sugar_leaves_its_import_free_to_pair(self) -> None:
-        site = Site(site_id="S", devices=[_sugar(no_simultaneous_flow=False), _plain_export("Grid")])
-        assert len(site.devices) == 2
+        wire = _api([_sugar(no_simultaneous_flow=False), _plain_export("Grid")])
+        assert [d["name"] for d in wire] == ["Grid", "Grid_overflow", "GridExport"]
+        assert "exclusive_with" not in wire[1]["properties"]
+        assert wire[2]["properties"]["exclusive_with"] == "Grid"

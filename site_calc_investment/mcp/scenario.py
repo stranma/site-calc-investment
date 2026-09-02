@@ -295,6 +295,17 @@ class ScenarioStore:
                 f"Device name '{name}' already exists in scenario '{scenario.name}'. "
                 "Device names must be unique within a scenario."
             )
+        if dtype == "electricity_import_with_overflow" and f"{name}_overflow" in existing_names:
+            raise ValueError(
+                f"Device '{name}' would derive an export named '{name}_overflow', which already exists in "
+                f"scenario '{scenario.name}'. Rename one of them."
+            )
+        for existing in scenario.devices:
+            if existing.device_type == "electricity_import_with_overflow" and name == f"{existing.name}_overflow":
+                raise ValueError(
+                    f"Device name '{name}' is reserved for the export derived from '{existing.name}'. "
+                    "Choose another name."
+                )
 
         if investment is not None:
             # Validate eagerly so a typo ({"capex": 1}) or wrong type fails
@@ -618,8 +629,9 @@ def _device_summary(config: DeviceConfig) -> str:
         max_ovf = props.get("max_overflow")
         max_ovf = max_imp if max_ovf is None else max_ovf
         mode = "one direction per hour" if props.get("no_simultaneous_flow", True) else "directions may overlap"
+        reservation_str = ", capacity reservation on import" if props.get("capacity_reservation") else ""
         return (
-            f"import max {max_imp} MW at {_price_summary(props.get('import_price'))}, "
+            f"import max {max_imp} MW at {_price_summary(props.get('import_price'))}{reservation_str}, "
             f"overflow max {max_ovf} MW at {_price_summary(props.get('overflow_price'))} ({mode}); "
             f"results list the export leg as '{config.name}_overflow'"
         )

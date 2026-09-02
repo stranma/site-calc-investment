@@ -263,7 +263,8 @@ Market device properties accept only their documented fields (unknown fields
 raise validation errors):
 
 - `electricity_import`: `price`, `max_import`, optional `capacity_reservation`
-- `electricity_export`: `price`, `max_export`, optional `capacity_reservation`
+- `electricity_export`: `price`, `max_export`, optional `capacity_reservation`,
+  optional `exclusive_with` (name of the paired import)
 - `gas_import`: `price`, `max_import`
 - `heat_export`: `price`, `max_export`
 

@@ -864,7 +864,8 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "type": "str",
                     "required": False,
                     "description": (
-                        "Name of the electricity_import (or cz_distribution_import) in this scenario sharing "
+                        "Name of the electricity_import, cz_distribution_import, or relaxed "
+                        "electricity_import_with_overflow in this scenario sharing "
                         "the connection point. The pair never imports and exports in the same hour (net "
                         "metering). Set max_export and the import's max_import to the real connection "
                         "capacity when pairing. For the common case prefer electricity_import_with_overflow"
@@ -975,13 +976,19 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "type": "float",
                     "required": True,
                     "unit": "MW",
-                    "description": "Connection capacity for import. Use the real value, not a placeholder",
+                    "description": (
+                        "Connection capacity for import (MW). Use the real value, not a placeholder: "
+                        "solve time depends on realistic ratings"
+                    ),
                 },
                 "max_overflow": {
                     "type": "float",
                     "required": False,
                     "unit": "MW",
-                    "description": "Connection capacity for the surplus fed back; defaults to max_import",
+                    "description": (
+                        "Connection capacity for the surplus fed back (MW); defaults to max_import. "
+                        "Use the real value: solve time depends on realistic ratings"
+                    ),
                 },
                 "no_simultaneous_flow": {
                     "type": "bool",

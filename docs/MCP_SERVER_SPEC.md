@@ -427,7 +427,7 @@ Get the properties schema for a device type.
 | `fixed_consumption` | Consumes exactly its profile | power_profile |
 | `max_power_consumption` | Steerable consumption at a linear value | max_power_profile, value_per_mwh |
 | `electricity_import` | Buy from grid | price, max_import, capacity_reservation* |
-| `electricity_export` | Sell to grid | price, max_export, capacity_reservation* |
+| `electricity_export` | Sell to grid | price, max_export, capacity_reservation*, exclusive_with |
 | `cz_distribution_import` | Buy from grid under the Czech distribution capacity tariff (2027 structure) | price, max_import, t1/t2 prices, reserved_capacity |
 | `electricity_import_with_overflow` | Net-metered grid connection: buy at import_price, surplus paid at overflow_price, one direction per hour | import_price, overflow_price, max_import, max_overflow, no_simultaneous_flow, capacity_reservation* |
 | `gas_import` | Gas supply | price, max_import |

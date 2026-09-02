@@ -263,7 +263,8 @@ class MarketExportProperties(BaseModel):
     exclusive_with: Optional[str] = Field(
         None,
         description=(
-            "Name of the electricity_import (or cz_distribution_import) in the same site that shares "
+            "Name of the electricity_import, cz_distribution_import, or relaxed "
+            "electricity_import_with_overflow in the same site that shares "
             "this connection point. The pair then never imports and exports in the same interval, "
             "which is what a net-metered connection settles. Use the real connection capacity for "
             "max_export and the import's max_import when pairing."
