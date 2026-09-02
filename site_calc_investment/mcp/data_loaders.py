@@ -104,6 +104,32 @@ def _load_json(file_path: str) -> list[float]:
         raise ValueError(f"JSON file '{file_path}' contains non-numeric values: {e}") from e
 
 
+def _sniff(sample: str) -> tuple[Any, bool]:
+    """Detect the CSV dialect and whether the first row is a header.
+
+    ``csv.Sniffer.has_header`` sniffs the delimiter itself, so on a file with
+    a single column (no delimiter anywhere) it raises ``csv.Error`` on recent
+    CPython releases. Fall back to the excel dialect and decide the header by
+    whether the first cell parses as a number.
+    """
+    sniffer = csv.Sniffer()
+    try:
+        dialect: Any = sniffer.sniff(sample)
+    except csv.Error:
+        dialect = csv.excel
+    try:
+        has_header = sniffer.has_header(sample)
+    except csv.Error:
+        lines = sample.splitlines()
+        first_cell = lines[0].split(dialect.delimiter)[0].strip() if lines else ""
+        try:
+            float(first_cell)
+            has_header = False
+        except ValueError:
+            has_header = bool(first_cell)
+    return dialect, has_header
+
+
 def _load_csv(file_path: str, column: Optional[str] = None) -> list[float]:
     """Load numeric data from a CSV file.
 
@@ -114,12 +140,7 @@ def _load_csv(file_path: str, column: Optional[str] = None) -> list[float]:
         sample = f.read(8192)
         f.seek(0)
 
-        try:
-            dialect = csv.Sniffer().sniff(sample)
-        except csv.Error:
-            dialect = csv.excel  # type: ignore[assignment]
-
-        has_header = csv.Sniffer().has_header(sample)
+        dialect, has_header = _sniff(sample)
         f.seek(0)
 
         reader = csv.reader(f, dialect)
@@ -253,12 +274,7 @@ def _get_csv_metadata(file_path: str) -> dict[str, Any]:
         sample = f.read(8192)
         f.seek(0)
 
-        try:
-            dialect = csv.Sniffer().sniff(sample)
-        except csv.Error:
-            dialect = csv.excel  # type: ignore[assignment]
-
-        has_header = csv.Sniffer().has_header(sample)
+        dialect, has_header = _sniff(sample)
         f.seek(0)
 
         reader = csv.reader(f, dialect)
