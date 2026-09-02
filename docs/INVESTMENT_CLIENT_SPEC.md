@@ -271,8 +271,10 @@ the one-direction rule. A hand-built `ElectricityExport` can pair with an
   it then sells the site's whole generation at the overflow price and buys the
   whole load at the import price in the same hour, which no meter settles.
   For PV 1.0 MW, load 0.6 MW, import 90 and overflow 120 EUR/MWh that is
-  66 EUR reported against 48 EUR metered, and the error repeats in every such
-  hour. It also makes a CHP look profitable when it is not and lets a
+  at least 66 EUR reported against 48 EUR metered (more when the connection
+  ratings leave slack, because grid power can then pass straight through),
+  and the error repeats in every such hour. It also makes a CHP look
+  profitable when it is not and lets a
   battery earn the price gap by charging from the import and selling to the
   export in the same hour, which no meter allows.
 - `ElectricityImportWithOverflow` is the pre-wired form: one device, sent as

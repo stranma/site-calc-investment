@@ -493,17 +493,17 @@ LLM actions:
 4. add_device(scenario_id=sid, device_type="battery", name="BESS",
      properties={"capacity": 20.0, "max_power": 10.0, "efficiency": 0.90},
      investment={"capital_cost": 500000})
-5. add_device(scenario_id=sid, device_type="electricity_import", name="GridBuy",
-     properties={"price": {"file": ".../2026.csv", "column": "price_eur_mwh"},
+5. add_device(scenario_id=sid, device_type="electricity_import_with_overflow", name="Grid",
+     properties={"import_price": {"file": ".../2026.csv", "column": "price_eur_mwh"},
+                 "overflow_price": {"file": ".../2026.csv", "column": "price_eur_mwh"},
                  "max_import": 10.0})
-6. add_device(scenario_id=sid, device_type="electricity_export", name="GridSell",
-     properties={"price": {"file": ".../2026.csv", "column": "price_eur_mwh"},
-                 "max_export": 10.0})
-7. set_investment_params(scenario_id=sid, discount_rate=0.05)
-8. review_scenario(scenario_id=sid)
-9. submit_scenario(scenario_id=sid)
-10. get_job_status(job_id=jid)  -- poll until complete
-11. get_job_result(job_id=jid, detail_level="summary")
+   -- one meter: either importing or exporting in any hour; results list
+      the export leg as "Grid_overflow"
+6. set_investment_params(scenario_id=sid, discount_rate=0.05)
+7. review_scenario(scenario_id=sid)
+8. submit_scenario(scenario_id=sid)
+9. get_job_status(job_id=jid)  -- poll until complete
+10. get_job_result(job_id=jid, detail_level="summary")
 ```
 
 LLM then presents the results: profit, NPV, IRR, payback period.

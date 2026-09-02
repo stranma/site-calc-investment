@@ -100,3 +100,36 @@ class TestOverflowMcpFeedback:
         validation = store.review(scenario_id)["validation"]
         assert validation.startswith("Not ready")
         assert "Nope" in validation
+
+
+class TestOverflowMcpSecondRound:
+    """Second reader-first review round: type check, device names, unpaired note."""
+
+    def test_string_flag_is_rejected(self, store: ScenarioStore, scenario_id: str) -> None:
+        with pytest.raises(ValueError, match="must be true or false"):
+            _add_sugar(store, scenario_id, no_simultaneous_flow="false")
+
+    def test_review_names_the_device_and_field(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(scenario_id, "electricity_import", "DSO", {"price": 50.0, "max_import": 2.0})
+        store.add_device(scenario_id, "electricity_export", "Overflow", {"price": 80.0, "exclusive_with": "DSO"})
+        validation = store.review(scenario_id)["validation"]
+        assert "Device 'Overflow'" in validation
+        assert "max_export" in validation
+
+    def test_review_reports_pairing_with_an_overflow_device(self, store: ScenarioStore, scenario_id: str) -> None:
+        _add_sugar(store, scenario_id)
+        store.add_device(
+            scenario_id, "electricity_export", "Second", {"price": 80.0, "max_export": 2.0, "exclusive_with": "Grid"}
+        )
+        assert "already carries its own export leg" in store.review(scenario_id)["validation"]
+
+    def test_review_notes_an_unpaired_import_and_export(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(scenario_id, "electricity_import", "GridBuy", {"price": 50.0, "max_import": 2.0})
+        store.add_device(scenario_id, "electricity_export", "GridSell", {"price": 80.0, "max_export": 2.0})
+        review = store.review(scenario_id)
+        assert review["validation"].startswith("Valid")
+        assert any("GridSell" in note and "exclusive_with" in note for note in review["notes"])
+
+    def test_no_note_when_paired(self, store: ScenarioStore, scenario_id: str) -> None:
+        _add_sugar(store, scenario_id)
+        assert store.review(scenario_id)["notes"] == []

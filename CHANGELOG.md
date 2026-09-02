@@ -27,11 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   1.5.0 accepted the `no_simultaneous_flow=False` case, which produced a
   second export on the same meter with no clear meaning.
 - MCP: `add_device` rejects a misplaced `exclusive_with` (it belongs on the
-  export) and unknown property keys at input time; `review_scenario` runs
+  export), a non-boolean `no_simultaneous_flow`, and unknown property keys
+  at input time; `review_scenario` names the device and field in its
+  messages and adds a note when an import and an export are left unpaired; `review_scenario` runs
   the full scenario validation (pairing targets, derived names, array
   lengths) and reports problems instead of "Valid"; export summaries show
   their pairing target.
-- `DeviceSchedule`/`SiteResult.grid_flows` description states that export
+- `SiteResult.grid_flows` description states that export
   flows are reported as negative values.
 
 ## [1.5.0] - 2026-09-02

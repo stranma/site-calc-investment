@@ -122,8 +122,10 @@ def explain_the_numbers() -> None:
     print(f"    sell all {PV_MW:.1f} MWh at {OVERFLOW_PRICE:.0f} EUR/MWh")
     print(f"    and buy the {LOAD_MW:.1f} MWh load at {IMPORT_PRICE:.0f} EUR/MWh.")
     print(f"  Over the day the metered value is {metered:.0f} EUR; the paired device reports exactly that.")
-    print("  The gap grows with every hour in which the overflow price is above the import price,")
-    print("  and it also misjudges CHP and battery dispatch, not just the total.")
+    print("  That is a lower bound: with slack in the connection ratings the optimizer also passes")
+    print("  grid power straight through, so the unpaired figure grows with the ratings (the live")
+    print("  run below shows it). The gap repeats in every hour with the overflow price above the")
+    print("  import price, and it misjudges CHP and battery dispatch, not just the total.")
 
 
 def submit(site: Site, label: str) -> None:

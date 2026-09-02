@@ -83,6 +83,10 @@ def add_device(
 
     Use get_device_schema(device_type) to see required properties.
 
+    A grid connection whose buy and sell prices differ is one meter: model it
+    as electricity_import_with_overflow (or pair an electricity_export with
+    its import via exclusive_with), not as a free-standing import + export.
+
     :param scenario_id: Scenario to add device to.
     :param device_type: One of the supported device types (lowercase).
     :param name: Unique device name within the scenario.

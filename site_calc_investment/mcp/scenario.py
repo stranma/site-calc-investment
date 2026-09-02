@@ -156,6 +156,11 @@ def _validate_properties_shape(dtype: str, name: str, properties: dict[str, Any]
     """
     if not isinstance(properties, dict):
         raise ValueError(f"Device '{name}': properties must be a dict, got {type(properties).__name__}.")
+    if "no_simultaneous_flow" in properties and not isinstance(properties["no_simultaneous_flow"], bool):
+        raise ValueError(
+            f"Device '{name}': no_simultaneous_flow must be true or false (a boolean), "
+            f"got {properties['no_simultaneous_flow']!r}."
+        )
     if "exclusive_with" in properties and dtype != "electricity_export":
         if dtype in _IMPORT_TYPES:
             hint = f"put exclusive_with on the electricity_export and name this device ('{name}') from there"
@@ -502,6 +507,7 @@ class ScenarioStore:
                 errors.append(f"Invalid scenario: {_first_error_message(e)}")
 
         validation = "Valid -- ready to submit" if not errors else f"Not ready: {'; '.join(errors)}"
+        notes = _pairing_notes(scenario.devices)
 
         return {
             "name": scenario.name,
@@ -510,6 +516,7 @@ class ScenarioStore:
             "timespan": timespan_str,
             "investment_params": investment_str,
             "validation": validation,
+            "notes": notes,
             "job_count": len(scenario.jobs),
         }
 
@@ -556,7 +563,14 @@ class ScenarioStore:
 
         devices = []
         for dc in scenario.devices:
-            device = _build_device(dc, expected_length)
+            try:
+                device = _build_device(dc, expected_length)
+            except PydanticValidationError as e:
+                # Name the device and field: a bare "Field required" is useless
+                # in a scenario with several devices.
+                first = e.errors()[0] if e.errors() else {}
+                location = ".".join(str(part) for part in first.get("loc", ())) or "properties"
+                raise ValueError(f"Device '{dc.name}' ({dc.device_type}): {location}: {first.get('msg', e)}") from e
             devices.append(device)
 
         site = Site(
@@ -632,6 +646,28 @@ class ScenarioStore:
                 )
             )
         return result
+
+
+def _pairing_notes(devices: list[DeviceConfig]) -> list[str]:
+    """Non-blocking hints: an unpaired import + export usually means one meter modeled as two."""
+    imports = [d.name for d in devices if d.device_type in _IMPORT_TYPES]
+    paired_imports = {
+        d.properties.get("exclusive_with")
+        for d in devices
+        if d.device_type == "electricity_export" and d.properties.get("exclusive_with")
+    }
+    free_exports = [
+        d.name for d in devices if d.device_type == "electricity_export" and not d.properties.get("exclusive_with")
+    ]
+    free_imports = [name for name in imports if name not in paired_imports]
+    if not free_imports or not free_exports:
+        return []
+    return [
+        f"'{free_imports[0]}' and '{free_exports[0]}' are not paired. If they share one connection point, "
+        f"set exclusive_with='{free_imports[0]}' on '{free_exports[0]}' or use one "
+        "electricity_import_with_overflow device; otherwise the optimizer may import and export in the "
+        "same hour whenever the sell price is above the buy price."
+    ]
 
 
 def _device_summary(config: DeviceConfig) -> str:
