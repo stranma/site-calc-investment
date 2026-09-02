@@ -36,8 +36,7 @@ class Site(BaseModel):
                         f"Device '{derived}' clashes with the export derived from '{d.name}'; rename one of them"
                     )
                 taken.add(derived)
-                if d.properties.no_simultaneous_flow:
-                    paired[d.name] = derived
+                paired[d.name] = derived
         by_name = {d.name: d for d in v}
         for d in v:
             if d.type != "electricity_export" or d.properties.exclusive_with is None:
@@ -48,14 +47,17 @@ class Site(BaseModel):
                 raise ValueError(
                     f"Device '{d.name}': exclusive_with references '{target_name}', which is not a device in this site"
                 )
-            # A strict overflow device is already paired with its own derived export;
-            # the "already paired" check below reports that. A relaxed one may pair.
-            is_import = target.type in (
-                "electricity_import",
-                "cz_distribution_import",
-                "electricity_import_with_overflow",
-            )
-            if not is_import:
+            # Only real imports can be targets. An overflow device already carries
+            # its own export leg; pairing a second export with it is refused even
+            # when it is relaxed, to keep one meaning: one import, one export.
+            if target.type == "electricity_import_with_overflow":
+                raise ValueError(
+                    f"Device '{d.name}': exclusive_with target '{target_name}' is an "
+                    f"electricity_import_with_overflow, which already carries its own export leg "
+                    f"('{overflow_device_name(target_name)}'); pair with a plain electricity_import or "
+                    f"cz_distribution_import instead"
+                )
+            if target.type not in ("electricity_import", "cz_distribution_import"):
                 raise ValueError(
                     f"Device '{d.name}': exclusive_with target '{target_name}' must be an electricity import, "
                     f"got {target.type}"

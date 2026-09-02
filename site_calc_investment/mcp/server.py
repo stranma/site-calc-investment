@@ -866,8 +866,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "type": "str",
                     "required": False,
                     "description": (
-                        "Name of the electricity_import, cz_distribution_import, or relaxed "
-                        "electricity_import_with_overflow in this scenario sharing "
+                        "Name of the electricity_import or cz_distribution_import in this scenario sharing "
                         "the connection point. The pair never imports and exports in the same hour (net "
                         "metering). Set max_export and the import's max_import to the real connection "
                         "capacity when pairing. For the common case prefer electricity_import_with_overflow"

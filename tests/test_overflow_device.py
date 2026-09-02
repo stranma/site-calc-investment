@@ -175,10 +175,16 @@ class TestSiteValidation:
 
     def test_one_export_per_import(self) -> None:
         with pytest.raises(ValidationError, match="already paired"):
+            Site(
+                site_id="S",
+                devices=[_plain_import(), _plain_export("GridImport"), _plain_export("GridImport", name="Second")],
+            )
+
+    def test_overflow_device_already_carries_its_export(self) -> None:
+        with pytest.raises(ValidationError, match="already carries its own export leg"):
             Site(site_id="S", devices=[_sugar(), _plain_export("Grid")])
 
-    def test_relaxed_sugar_leaves_its_import_free_to_pair(self) -> None:
-        wire = _api([_sugar(no_simultaneous_flow=False), _plain_export("Grid")])
-        assert [d["name"] for d in wire] == ["Grid", "Grid_overflow", "GridExport"]
-        assert "exclusive_with" not in wire[1]["properties"]
-        assert wire[2]["properties"]["exclusive_with"] == "Grid"
+    def test_overflow_device_is_never_a_pairing_target(self) -> None:
+        """Relaxed or not, the overflow device is not a pairing target."""
+        with pytest.raises(ValidationError, match="already carries its own export leg"):
+            Site(site_id="S", devices=[_sugar(no_simultaneous_flow=False), _plain_export("Grid")])

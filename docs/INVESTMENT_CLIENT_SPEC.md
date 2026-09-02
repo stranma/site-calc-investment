@@ -261,6 +261,36 @@ the one-direction rule. A hand-built `ElectricityExport` can pair with an
 `ElectricityImport` or `CzDistributionImport` the same way through its
 `exclusive_with` property (the import's name).
 
+**How the pairing works.** Think of the pair as one meter:
+
+- In every hour the connection is either importing or exporting, never both.
+  The surplus (generation minus consumption) is paid at the overflow price;
+  the deficit is bought at the import price.
+- Without the pairing the optimizer treats import and export as two
+  independent devices. Whenever the overflow price is above the import price
+  it then sells the site's whole generation at the overflow price and buys the
+  whole load at the import price in the same hour, which no meter settles.
+  For PV 1.0 MW, load 0.6 MW, import 90 and overflow 120 EUR/MWh that is
+  66 EUR reported against 48 EUR metered, and the error repeats in every such
+  hour. It also makes a CHP look profitable when it is not and undervalues
+  battery discharge.
+- `ElectricityImportWithOverflow` is the pre-wired form: one device, sent as
+  the import named after it plus an export named `<name>_overflow` that is
+  paired with it. `no_simultaneous_flow=False` sends the same two devices
+  without the pairing (the unpaired behavior above, for comparison runs).
+- `exclusive_with` on a plain `ElectricityExport` is the same rule for pairs
+  you build yourself. The target must be an `ElectricityImport` or a
+  `CzDistributionImport` in the same site, and each import can be paired
+  with one export. Use this form when the import side needs something the
+  overflow device does not expose, such as the Czech T1/T2 tariff menu.
+- Use the real connection capacity for `max_import`, `max_overflow` and
+  `max_export` on paired devices; the service refuses a paired device
+  without an explicit rating.
+- Results list both legs: the import under the device's name and the export
+  under `<name>_overflow` (or the export's own name for hand-built pairs).
+
+See `examples/04_import_with_overflow.py` for a runnable walk-through.
+
 Market device properties accept only their documented fields (unknown fields
 raise validation errors):
 

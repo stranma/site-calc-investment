@@ -5,6 +5,28 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-09-02
+
+### Added
+
+- `examples/04_import_with_overflow.py`: runnable walk-through of the
+  net-metered connection -- the `electricity_import_with_overflow` device, the
+  same pairing built by hand from a `cz_distribution_import` and an
+  `electricity_export` with `exclusive_with`, the payload actually sent, and
+  the arithmetic showing why an unpaired import + export overstates revenue.
+- "How the pairing works" section in `docs/INVESTMENT_CLIENT_SPEC.md`.
+- `ElectricityImportWithOverflow` and `ElectricityImportWithOverflowProperties`
+  are exported from the package top level like the other device models.
+
+### Changed
+
+- `exclusive_with` on an `electricity_export` may target only an
+  `electricity_import` or a `cz_distribution_import`. Pairing with an
+  `electricity_import_with_overflow` device (which already carries its own
+  export leg) is now rejected, relaxed or not; 1.5.0 accepted the relaxed
+  case, which produced a second export on the same meter with no clear
+  meaning.
+
 ## [1.5.0] - 2026-09-02
 
 > The `electricity_import_with_overflow` device and the `exclusive_with`
