@@ -4,6 +4,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, cast
 
+from pydantic import ValidationError as PydanticValidationError
+
 from site_calc_investment.models.capacity import DeviceInvestment
 from site_calc_investment.models.common import Resolution
 from site_calc_investment.models.devices import (
@@ -122,6 +124,69 @@ DEVICE_TYPE_MAP: dict[str, str] = {
 }
 
 VALID_DEVICE_TYPES: set[str] = set(DEVICE_TYPE_MAP.keys())
+
+_PROPERTY_MODELS: dict[str, Any] = {
+    "battery": BatteryProperties,
+    "chp": CHPProperties,
+    "heat_accumulator": HeatAccumulatorProperties,
+    "photovoltaic_nonsteerable": FixedProfileProperties,
+    "photovoltaic_steerable": PhotovoltaicSteerableProperties,
+    "fixed_production": FixedProfileProperties,
+    "max_power_production": MaxPowerProductionProperties,
+    "fixed_consumption": FixedProfileProperties,
+    "max_power_consumption": MaxPowerConsumptionProperties,
+    "heat_demand": DemandProperties,
+    "electricity_demand": DemandProperties,
+    "electricity_import": MarketImportProperties,
+    "electricity_export": MarketExportProperties,
+    "gas_import": GasImportProperties,
+    "heat_export": HeatExportProperties,
+    "cz_distribution_import": CzDistributionImportProperties,
+    "electricity_import_with_overflow": ElectricityImportWithOverflowProperties,
+}
+
+_IMPORT_TYPES = ("electricity_import", "cz_distribution_import")
+
+
+def _validate_properties_shape(dtype: str, name: str, properties: dict[str, Any]) -> None:
+    """Input-time checks that need no timespan: a misplaced pairing field, unknown keys.
+
+    Full validation (array lengths, pairing targets, derived names) runs in
+    ``review`` and ``build_request`` once the timespan is known.
+    """
+    if not isinstance(properties, dict):
+        raise ValueError(f"Device '{name}': properties must be a dict, got {type(properties).__name__}.")
+    if "no_simultaneous_flow" in properties and not isinstance(properties["no_simultaneous_flow"], bool):
+        raise ValueError(
+            f"Device '{name}': no_simultaneous_flow must be true or false (a boolean), "
+            f"got {properties['no_simultaneous_flow']!r}."
+        )
+    if "exclusive_with" in properties and dtype != "electricity_export":
+        if dtype in _IMPORT_TYPES:
+            hint = f"put exclusive_with on the electricity_export and name this device ('{name}') from there"
+        else:
+            hint = "it is only valid on electricity_export"
+        raise ValueError(f"Device '{name}': exclusive_with does not belong on a {dtype}; {hint}.")
+    model = _PROPERTY_MODELS.get(dtype)
+    if model is None or model.model_config.get("extra") != "forbid":
+        return
+    unknown = sorted(set(properties) - set(model.model_fields))
+    if unknown:
+        noun = "property" if len(unknown) == 1 else "properties"
+        raise ValueError(
+            f"Device '{name}': unknown {noun} {unknown} for {dtype}. "
+            f"Valid: {sorted(model.model_fields)}. Use get_device_schema('{dtype}')."
+        )
+
+
+def _first_error_message(error: Exception) -> str:
+    """Human-readable first message of a validation failure."""
+    if isinstance(error, PydanticValidationError):
+        details = error.errors()
+        if details:
+            message = str(details[0].get("msg", error))
+            return message.removeprefix("Value error, ")
+    return str(error)
 
 
 def _build_schedule(schedule_dict: Optional[dict[str, Any]]) -> Optional[Schedule]:
@@ -307,6 +372,8 @@ class ScenarioStore:
                     "Choose another name."
                 )
 
+        _validate_properties_shape(dtype, name, properties)
+
         if investment is not None:
             # Validate eagerly so a typo ({"capex": 1}) or wrong type fails
             # here at input time, not at submit time in _build_device.
@@ -431,8 +498,16 @@ class ScenarioStore:
             errors.append("No devices added")
         if not scenario.timespan:
             errors.append("No timespan set")
+        if scenario.devices and scenario.timespan:
+            # Run the full request build so pairing targets, derived names
+            # and array lengths are reported here, not first at submit.
+            try:
+                self.build_request(scenario_id)
+            except (ValueError, PydanticValidationError) as e:
+                errors.append(f"Invalid scenario: {_first_error_message(e)}")
 
         validation = "Valid -- ready to submit" if not errors else f"Not ready: {'; '.join(errors)}"
+        notes = _pairing_notes(scenario.devices)
 
         return {
             "name": scenario.name,
@@ -441,6 +516,7 @@ class ScenarioStore:
             "timespan": timespan_str,
             "investment_params": investment_str,
             "validation": validation,
+            "notes": notes,
             "job_count": len(scenario.jobs),
         }
 
@@ -487,7 +563,18 @@ class ScenarioStore:
 
         devices = []
         for dc in scenario.devices:
-            device = _build_device(dc, expected_length)
+            try:
+                device = _build_device(dc, expected_length)
+            except PydanticValidationError as e:
+                # Name the device and field: a bare "Field required" is useless
+                # in a scenario with several devices.
+                details = e.errors()
+                if details:
+                    location = ".".join(str(part) for part in details[0]["loc"]) or "properties"
+                    message = details[0]["msg"]
+                else:
+                    location, message = "properties", str(e)
+                raise ValueError(f"Device '{dc.name}' ({dc.device_type}): {location}: {message}") from e
             devices.append(device)
 
         site = Site(
@@ -563,6 +650,28 @@ class ScenarioStore:
                 )
             )
         return result
+
+
+def _pairing_notes(devices: list[DeviceConfig]) -> list[str]:
+    """Non-blocking hints: an unpaired import + export usually means one meter modeled as two."""
+    imports = [d.name for d in devices if d.device_type in _IMPORT_TYPES]
+    paired_imports = {
+        d.properties.get("exclusive_with")
+        for d in devices
+        if d.device_type == "electricity_export" and d.properties.get("exclusive_with")
+    }
+    free_exports = [
+        d.name for d in devices if d.device_type == "electricity_export" and not d.properties.get("exclusive_with")
+    ]
+    free_imports = [name for name in imports if name not in paired_imports]
+    if not free_imports or not free_exports:
+        return []
+    return [
+        f"'{free_imports[0]}' and '{free_exports[0]}' are not paired. If they share one connection point, "
+        f"set exclusive_with='{free_imports[0]}' on '{free_exports[0]}' or use one "
+        "electricity_import_with_overflow device; otherwise the optimizer may import and export in the "
+        "same hour whenever the sell price is above the buy price."
+    ]
 
 
 def _device_summary(config: DeviceConfig) -> str:
@@ -645,10 +754,13 @@ def _device_summary(config: DeviceConfig) -> str:
 
     elif dtype in ("electricity_export", "heat_export"):
         max_exp = props.get("max_export", "?")
+        pairing_str = (
+            f", paired with '{props['exclusive_with']}' (one direction per hour)" if props.get("exclusive_with") else ""
+        )
         price = props.get("price")
         price_str = _price_summary(price)
         reservation_str = ", capacity reservation" if props.get("capacity_reservation") else ""
-        return f"max {max_exp} MW, {price_str}{reservation_str}"
+        return f"max {max_exp} MW, {price_str}{reservation_str}{pairing_str}"
 
     return f"{dtype} device"
 

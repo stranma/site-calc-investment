@@ -293,9 +293,10 @@ Full documentation available at: https://github.com/stranma/site-calc-investment
 ## Examples
 
 See `examples/` directory for complete examples:
-- `capacity_planning.py` - 10-year capacity planning workflow
-- `roi_analysis.py` - Investment ROI calculation
-- `scenario_comparison.py` - Compare device configurations
+- `01_basic_capacity_planning.py` - one-week battery capacity planning workflow
+- `02_scenario_comparison.py` - compare device configurations
+- `03_financial_analysis.py` - investment ROI calculation
+- `04_import_with_overflow.py` - net-metered import with overflow: the device, a hand-built pairing, and why it matters
 
 ## Requirements
 

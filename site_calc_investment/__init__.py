@@ -3,7 +3,7 @@
 Python client for long-term capacity planning and investment ROI analysis.
 """
 
-__version__ = "1.5.0"
+__version__ = "1.5.1"
 
 from site_calc_investment.analysis import (
     aggregate_annual,
@@ -38,6 +38,8 @@ from site_calc_investment.models import (
     ElectricityDemand,
     ElectricityExport,
     ElectricityImport,
+    ElectricityImportWithOverflow,
+    ElectricityImportWithOverflowProperties,
     FixedConsumption,
     FixedProduction,
     GasImport,
@@ -90,6 +92,8 @@ __all__ = [
     "GasImport",
     "HeatExport",
     "CzDistributionImport",
+    "ElectricityImportWithOverflow",
+    "ElectricityImportWithOverflowProperties",
     # Capacity reservations and investment accounting
     "CapacityTariff",
     "CapacityReservation",

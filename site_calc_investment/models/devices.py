@@ -265,8 +265,7 @@ class MarketExportProperties(BaseModel):
     exclusive_with: Optional[str] = Field(
         None,
         description=(
-            "Name of the electricity_import, cz_distribution_import, or relaxed "
-            "electricity_import_with_overflow in the same site that shares "
+            "Name of the electricity_import or cz_distribution_import in the same site that shares "
             "this connection point. The pair then never imports and exports in the same interval, "
             "which is what a net-metered connection settles. Use the real connection capacity for "
             "max_export and the import's max_import when pairing."
@@ -385,7 +384,10 @@ class ElectricityImportWithOverflowProperties(BaseModel):
     )
     no_simultaneous_flow: bool = Field(
         True,
-        description="Either import or export per interval (the meter's behaviour); False relaxes the rule",
+        description=(
+            "True: either import or export per interval (what the meter settles). "
+            "False: sends the same two devices without the pairing, for comparison runs only"
+        ),
     )
     capacity_reservation: Optional[CapacityReservation] = Field(
         None, description="Optional per-period capacity limit and charge on the import side"

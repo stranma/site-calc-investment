@@ -67,3 +67,69 @@ class TestOverflowSchema:
     def test_electricity_export_schema_lists_the_pairing_field(self) -> None:
         schema = mcp_server.get_device_schema("electricity_export")
         assert schema["properties"]["exclusive_with"]["required"] is False
+
+
+class TestOverflowMcpFeedback:
+    """Mistakes are reported at add time or in review, not first at submit."""
+
+    def test_exclusive_with_on_an_import_is_rejected_at_add_time(self, store: ScenarioStore, scenario_id: str) -> None:
+        with pytest.raises(ValueError, match="put exclusive_with on the electricity_export"):
+            store.add_device(
+                scenario_id, "electricity_import", "Grid", {"price": 50.0, "max_import": 1.0, "exclusive_with": "X"}
+            )
+
+    def test_unknown_property_is_rejected_at_add_time(self, store: ScenarioStore, scenario_id: str) -> None:
+        with pytest.raises(ValueError, match="unknown property"):
+            _add_sugar(store, scenario_id, price=1.0)
+
+    def test_hand_built_pairing_through_the_store(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(scenario_id, "electricity_import", "DSO", {"price": 50.0, "max_import": 2.0})
+        summary = store.add_device(
+            scenario_id, "electricity_export", "Overflow", {"price": 80.0, "max_export": 2.0, "exclusive_with": "DSO"}
+        )
+        assert "paired with 'DSO'" in summary
+        wire = store.build_request(scenario_id).model_dump_for_api()["sites"][0]["devices"]
+        assert wire[1]["properties"]["exclusive_with"] == "DSO"
+        assert store.review(scenario_id)["validation"].startswith("Valid")
+
+    def test_review_reports_a_missing_pairing_target(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(scenario_id, "electricity_import", "DSO", {"price": 50.0, "max_import": 2.0})
+        store.add_device(
+            scenario_id, "electricity_export", "Overflow", {"price": 80.0, "max_export": 2.0, "exclusive_with": "Nope"}
+        )
+        validation = store.review(scenario_id)["validation"]
+        assert validation.startswith("Not ready")
+        assert "Nope" in validation
+
+
+class TestOverflowMcpSecondRound:
+    """Second reader-first review round: type check, device names, unpaired note."""
+
+    def test_string_flag_is_rejected(self, store: ScenarioStore, scenario_id: str) -> None:
+        with pytest.raises(ValueError, match="must be true or false"):
+            _add_sugar(store, scenario_id, no_simultaneous_flow="false")
+
+    def test_review_names_the_device_and_field(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(scenario_id, "electricity_import", "DSO", {"price": 50.0, "max_import": 2.0})
+        store.add_device(scenario_id, "electricity_export", "Overflow", {"price": 80.0, "exclusive_with": "DSO"})
+        validation = store.review(scenario_id)["validation"]
+        assert "Device 'Overflow'" in validation
+        assert "max_export" in validation
+
+    def test_review_reports_pairing_with_an_overflow_device(self, store: ScenarioStore, scenario_id: str) -> None:
+        _add_sugar(store, scenario_id)
+        store.add_device(
+            scenario_id, "electricity_export", "Second", {"price": 80.0, "max_export": 2.0, "exclusive_with": "Grid"}
+        )
+        assert "already carries its own export leg" in store.review(scenario_id)["validation"]
+
+    def test_review_notes_an_unpaired_import_and_export(self, store: ScenarioStore, scenario_id: str) -> None:
+        store.add_device(scenario_id, "electricity_import", "GridBuy", {"price": 50.0, "max_import": 2.0})
+        store.add_device(scenario_id, "electricity_export", "GridSell", {"price": 80.0, "max_export": 2.0})
+        review = store.review(scenario_id)
+        assert review["validation"].startswith("Valid")
+        assert any("GridSell" in note and "exclusive_with" in note for note in review["notes"])
+
+    def test_no_note_when_paired(self, store: ScenarioStore, scenario_id: str) -> None:
+        _add_sugar(store, scenario_id)
+        assert store.review(scenario_id)["notes"] == []

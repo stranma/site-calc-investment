@@ -83,6 +83,10 @@ def add_device(
 
     Use get_device_schema(device_type) to see required properties.
 
+    A grid connection whose buy and sell prices differ is one meter: model it
+    as electricity_import_with_overflow (or pair an electricity_export with
+    its import via exclusive_with), not as a free-standing import + export.
+
     :param scenario_id: Scenario to add device to.
     :param device_type: One of the supported device types (lowercase).
     :param name: Unique device name within the scenario.
@@ -866,8 +870,7 @@ def get_device_schema(device_type: str) -> dict[str, Any]:
                     "type": "str",
                     "required": False,
                     "description": (
-                        "Name of the electricity_import, cz_distribution_import, or relaxed "
-                        "electricity_import_with_overflow in this scenario sharing "
+                        "Name of the electricity_import or cz_distribution_import in this scenario sharing "
                         "the connection point. The pair never imports and exports in the same hour (net "
                         "metering). Set max_export and the import's max_import to the real connection "
                         "capacity when pairing. For the common case prefer electricity_import_with_overflow"
