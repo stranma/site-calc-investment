@@ -11,8 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `BatteryProperties.degradation_yearly`: yearly capacity degradation
   curve in percent, one entry per model year: `[5, 3, 2]` = 5% in
-  year 1, 3% in year 2, 2% in year 3. The curve must cover every year
-  of the horizon (longer is allowed; extras ignored). The server expands it
+  year 1, 3% in year 2, 2% in year 3. The curve must include at least
+  one entry for every model year in the horizon; shorter curves are
+  rejected rather than extended by repeating or filling from the last
+  entry. Longer curves are allowed and extras are ignored. The server expands it
   to a stepwise cap on usable stored energy: `prod(1 - d/100)` times
   the energy the battery actually has -- the fixed `reserved` energy
   when `capacity_sizing` is present, otherwise `capacity`. Each year's

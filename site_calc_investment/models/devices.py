@@ -52,8 +52,10 @@ class BatteryProperties(BaseModel):
         description=(
             "Yearly capacity degradation curve in percent, one entry per model "
             "year: [5, 3, 2] = 5% in year 1, 3% in year 2, 2% in year 3. The curve "
-            "must cover every year of the horizon (a longer curve is allowed; the "
-            "extra entries are ignored). "
+            "must include at least one entry for every model year in the horizon; "
+            "shorter curves are rejected rather than extended by repeating or "
+            "filling from the last entry. Longer curves are allowed and extra "
+            "entries are ignored. "
             "The server caps the usable stored energy at prod(1 - d/100) times the "
             "energy the battery actually has (the fixed 'reserved' energy when "
             "capacity_sizing is present, else capacity). Each year's loss applies "
