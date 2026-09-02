@@ -392,8 +392,7 @@ class TestSingleColumnCsv:
         import pathlib
 
         path = pathlib.Path(str(tmp_path)) / "one.csv"
-        path.write_text("
-".join(["price_eur", "30", "40", "80", "50", ""]), encoding="utf-8")
+        path.write_text("\n".join(["price_eur", "30", "40", "80", "50", ""]), encoding="utf-8")
         loaded = resolve_price_or_profile({"file": str(path), "column": "price_eur"}, expected_length=4)
         assert loaded == [30.0, 40.0, 80.0, 50.0]
 
@@ -401,6 +400,5 @@ class TestSingleColumnCsv:
         import pathlib
 
         path = pathlib.Path(str(tmp_path)) / "bare.csv"
-        path.write_text("
-".join(["30", "40", "80", "50", ""]), encoding="utf-8")
+        path.write_text("\n".join(["30", "40", "80", "50", ""]), encoding="utf-8")
         assert resolve_price_or_profile({"file": str(path)}, expected_length=4) == [30.0, 40.0, 80.0, 50.0]
