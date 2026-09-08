@@ -251,6 +251,53 @@ class TestGetJobResult:
         assert result["investment_metrics"]["npv"] == 850000.0
         assert "device_summaries" not in result  # summary level has no device details
 
+    def test_get_result_summary_has_status_fields_and_no_warning_when_proven(self, mock_result_response: dict) -> None:
+        mock_client = MagicMock()
+        from site_calc_investment.models.responses import InvestmentPlanningResponse
+
+        result_data = {
+            "job_id": str(mock_result_response["job_id"]),
+            "status": mock_result_response["status"],
+            **mock_result_response["result"],
+        }
+        mock_client.get_job_result.return_value = InvestmentPlanningResponse(**result_data)
+        mcp_server._client = mock_client
+
+        result = mcp_server.get_job_result(job_id="test_job_mcp_123", detail_level="summary")
+        assert result["summary"]["is_optimal"] is None  # fixture predates the fields
+        assert "termination_reason" in result["summary"]
+        assert "optimality_gap" in result["summary"]
+        assert "warning" not in result["summary"]
+
+    def test_get_result_summary_warns_when_not_proven_optimal(self, mock_result_response: dict) -> None:
+        import copy
+
+        from site_calc_investment.models.responses import InvestmentPlanningResponse
+
+        mock_client = MagicMock()
+        data = copy.deepcopy(mock_result_response)
+        data["result"]["summary"].update(
+            {
+                "solver_status": "Feasible",
+                "is_optimal": False,
+                "termination_reason": "time_limit",
+                "optimality_gap": 0.08,
+            }
+        )
+        result_data = {
+            "job_id": str(data["job_id"]),
+            "status": data["status"],
+            **data["result"],
+        }
+        mock_client.get_job_result.return_value = InvestmentPlanningResponse(**result_data)
+        mcp_server._client = mock_client
+
+        result = mcp_server.get_job_result(job_id="test_job_mcp_123", detail_level="summary")
+        assert result["summary"]["is_optimal"] is False
+        assert result["summary"]["optimality_gap"] == 0.08
+        assert "time_limit" in result["summary"]["warning"]
+        assert "3600" in result["summary"]["warning"]
+
     def test_get_result_monthly(self, mock_result_response: dict) -> None:
         mock_client = MagicMock()
         from site_calc_investment.models.responses import InvestmentPlanningResponse

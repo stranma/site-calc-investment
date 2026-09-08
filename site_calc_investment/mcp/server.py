@@ -278,6 +278,11 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
     - "monthly": Summary + monthly breakdown per device.
     - "full": All data including hourly schedules. WARNING: can be very large (87K+ values).
 
+    The summary always carries solver_status ("Optimal", or "Feasible" when the
+    time limit cut the solve short), is_optimal, termination_reason and
+    optimality_gap; when is_optimal is False a "warning" string explains that
+    the plan is the best found so far and how to get a proven one.
+
     :param job_id: Job identifier.
     :param detail_level: One of "summary", "monthly", "full" (default: "summary").
     :returns: Result dict at requested detail level.
@@ -296,9 +301,18 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
             "total_da_revenue": response.summary.total_da_revenue,
             "total_cost": response.summary.total_cost,
             "solver_status": response.summary.solver_status,
+            "is_optimal": response.summary.is_optimal,
+            "termination_reason": response.summary.termination_reason,
+            "optimality_gap": response.summary.optimality_gap,
             "solve_time_seconds": response.summary.solve_time_seconds,
         },
     }
+    if response.summary.is_optimal is False:
+        result["summary"]["warning"] = (
+            f"The solver stopped early ({response.summary.termination_reason}) and returned the best "
+            f"plan found so far; relative optimality gap {response.summary.optimality_gap}. Resubmit "
+            "with a larger solver_timeout (up to 3600 s), or a larger mip_gap, for a proven result."
+        )
 
     if response.investment_metrics:
         metrics = response.investment_metrics

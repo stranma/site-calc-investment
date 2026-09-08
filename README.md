@@ -73,8 +73,11 @@ job = client.create_planning_job(request)
 result = client.wait_for_completion(job.job_id, poll_interval=5, timeout=600)
 
 print(f"Status: {result.status}")
-print(f"Solver: {result.summary.solver_status}")
+print(f"Solver: {result.summary.solver_status}")  # "Optimal", or "Feasible" when the time limit cut the solve short
 print(f"Profit: €{result.summary.expected_profit:,.2f}")
+if result.summary.is_optimal is False:  # "is False", not "not ...": None means an older service that does not report it
+    # Best plan found so far; optimality_gap says how far it may be from the true optimum
+    print(f"Stopped early ({result.summary.termination_reason}), relative gap {result.summary.optimality_gap}")
 ```
 
 ## Features

@@ -460,6 +460,12 @@ result = client.wait_for_completion(
     timeout=7200,  # 2 hour max wait
 )
 
+# A job that hits time_limit_seconds still completes, with the best plan
+# found so far: solver_status == "Feasible", is_optimal False, and
+# optimality_gap telling how far from the optimum it may be.
+if result.summary.is_optimal is False:
+    print(f"Early stop ({result.summary.termination_reason}), gap {result.summary.optimality_gap}")
+
 # Compute investment metrics client-side from the annual aggregates
 from site_calc_investment.analysis import calculate_investment_metrics
 
@@ -842,6 +848,13 @@ The solver time limit is capped at 3600 seconds (60 minutes) per job. Solve
 time grows with horizon length, device count, and the number of capacity
 reservations. Keeping `relax_binary_variables=True` (the default) is what
 makes 10-year horizons tractable within the limit.
+
+Hitting the limit does not fail the job. The service returns the best plan
+found so far with `summary.solver_status == "Feasible"`, `is_optimal ==
+False`, `termination_reason == "time_limit"` and `optimality_gap` (relative
+distance to the proven bound; `None` if no bound was reached). Only
+`"Optimal"` means the plan was proven optimal within `mip_gap`. Raise
+`time_limit_seconds`, or accept a larger `mip_gap`, to get a proven result.
 
 ### 11.2 Binary Variable Relaxation
 

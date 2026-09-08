@@ -125,9 +125,40 @@ class Summary(BaseModel):
     total_ancillary_revenue: Optional[float] = Field(None, description="Total ANS capacity payments (EUR)")
     total_cost: Optional[float] = Field(None, description="Total operational costs (EUR)")
     expected_profit: Optional[float] = Field(None, description="Expected profit (revenue - cost) (EUR)")
-    solver_status: str = Field(..., description="Solver status (optimal, timeout, infeasible, etc.)")
+    solver_status: str = Field(
+        ...,
+        description=(
+            "'Optimal' when the service proved the plan optimal within the requested mip_gap; "
+            "'Feasible' when the solver stopped early (time_limit_seconds reached) and returned "
+            "the best plan found so far. Check is_optimal and optimality_gap before relying on "
+            "a Feasible plan."
+            " Use is_optimal for a reliable check rather than comparing this text."
+        ),
+    )
     solve_time_seconds: float = Field(..., ge=0, description="Solver execution time")
     sites_count: Optional[int] = Field(None, description="Number of sites optimized")
+    is_optimal: Optional[bool] = Field(
+        None,
+        description=(
+            "True when optimality was proven within mip_gap; False when the solver stopped early "
+            "with the best plan found so far; None from services older than 1.5.2"
+        ),
+    )
+    termination_reason: Optional[str] = Field(
+        None,
+        description=(
+            "Why the solver stopped: 'optimal', 'time_limit', 'iteration_limit', 'interrupt', "
+            "'objective_bound' or 'limit'; None from services older than 1.5.2"
+        ),
+    )
+    optimality_gap: Optional[float] = Field(
+        None,
+        description=(
+            "Relative gap between the returned plan's objective and the proven bound "
+            "(0.0 = proven optimum, 0.05 = within 5%). Filled for Optimal results too (0.0, or below "
+            "the requested mip_gap); None when the solver had no bound or from services older than 1.5.2"
+        ),
+    )
 
 
 class InvestmentPlanningResponse(BaseModel):

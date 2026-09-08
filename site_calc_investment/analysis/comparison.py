@@ -48,6 +48,7 @@ def compare_scenarios(
         "payback_years": [],
         "solve_time_seconds": [],
         "solver_status": [],
+        "optimality_gap": [],
     }
 
     for scenario in scenarios:
@@ -71,6 +72,7 @@ def compare_scenarios(
         comparison["payback_years"].append(inv_metrics.payback_period_years if inv_metrics else None)
         comparison["solve_time_seconds"].append(summary.solve_time_seconds)
         comparison["solver_status"].append(summary.solver_status)
+        comparison["optimality_gap"].append(summary.optimality_gap)
 
     return comparison
 
@@ -108,6 +110,8 @@ def print_comparison(comparison: dict) -> None:
 
         print(f"  Solve Time:       {comparison['solve_time_seconds'][i]:>15.1f}s")
         print(f"  Solver Status:    {comparison['solver_status'][i]:>15}")
+        if comparison["optimality_gap"][i] is not None:
+            print(f"  Optimality Gap:   {comparison['optimality_gap'][i] * 100:>15.2f}%")
 
     print("\n" + "=" * 80)
 

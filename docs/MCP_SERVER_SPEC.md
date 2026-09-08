@@ -301,6 +301,12 @@ for multi-site results). Each entry lists:
 At `detail_level="full"`, each device schedule additionally carries the raw
 per-period breakdown (`start`, `end`, `peak`, `tariff`, `payment`).
 
+Every detail level's `summary` carries `solver_status` (`Optimal`, or
+`Feasible` when the time limit cut the solve short), `is_optimal`,
+`termination_reason` and `optimality_gap`. A `Feasible` result is the best
+plan found so far; `optimality_gap` is how far (relative) it may be from the
+true optimum, and the dict then also carries a `warning` string saying so.
+
 **Returns:** Result dict at requested detail level.
 
 ---

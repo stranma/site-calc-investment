@@ -85,6 +85,7 @@ class TestCompareScenarios:
             "payback_years",
             "solve_time_seconds",
             "solver_status",
+            "optimality_gap",
         }
         assert set(comparison.keys()) == expected_keys
 
