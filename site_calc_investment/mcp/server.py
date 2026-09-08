@@ -222,7 +222,10 @@ def submit_scenario(
     :param solver_timeout: Solver time limit in seconds (max 3600).
     :param mip_gap: Relative MIP optimality gap (0.01 = stop within 1% of
         the optimum, the default; 0 = request a zero gap, proving full
-        optimality unless solver_timeout expires first; max 0.1).
+        optimality unless solver_timeout expires first; any value >= 0,
+        larger gaps return sooner with a looser guarantee; a fraction, not
+        a percent: 0.01 means 1%, and 1 or more drops the optimality
+        guarantee).
     :returns: Dict with job_id and initial status.
     """
     objective_literal = cast(

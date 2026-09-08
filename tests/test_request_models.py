@@ -99,16 +99,18 @@ class TestOptimizationConfig:
         assert config.relax_binary_variables is True
 
     def test_optimization_config_mip_gap_bounds(self):
-        """mip_gap accepts [0, 0.1]; rejects negative and above 0.1."""
+        """mip_gap accepts any finite value >= 0; rejects negative, inf and nan."""
         import pytest
         from pydantic import ValidationError
 
         assert OptimizationConfig(mip_gap=0.0).mip_gap == 0.0
         assert OptimizationConfig(mip_gap=0.1).mip_gap == 0.1
+        assert OptimizationConfig(mip_gap=2.5).mip_gap == 2.5
         with pytest.raises(ValidationError):
             OptimizationConfig(mip_gap=-0.01)
-        with pytest.raises(ValidationError):
-            OptimizationConfig(mip_gap=0.11)
+        for bad in (float("inf"), float("nan")):
+            with pytest.raises(ValidationError):
+                OptimizationConfig(mip_gap=bad)
 
     def test_mip_gap_serialized_to_wire(self):
         """The gap must appear in the API payload (it configures the server solver)."""

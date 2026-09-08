@@ -250,6 +250,7 @@ Submit a draft scenario for server-side optimization.
 | `scenario_id` | string | Yes | | Scenario to submit |
 | `objective` | string | No | `maximize_profit` | Optimization objective |
 | `solver_timeout` | int | No | 300 | Time limit in seconds (max 3600) |
+| `mip_gap` | float | No | 0.01 | Relative MIP optimality gap; 0 = prove optimality; any value >= 0 |
 
 Objectives: `maximize_profit`, `minimize_cost`, `maximize_self_consumption`.
 
