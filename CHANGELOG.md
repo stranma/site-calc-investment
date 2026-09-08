@@ -5,6 +5,17 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-09-08
+
+### Changed
+
+- `OptimizationConfig.mip_gap` accepts any value >= 0 (previously capped
+  at 0.1), and the MCP `submit_scenario` tool no longer clamps larger
+  values down to 0.1; negative values are still rejected by the model and
+  clamped to 0 by the tool. A larger gap returns sooner with a looser
+  optimality guarantee. Services below 1.5.1 reject values above 0.1
+  at submission.
+
 ## [1.5.1] - 2026-09-02
 
 ### Added

@@ -586,9 +586,9 @@ class ScenarioStore:
         opt_config = OptimizationConfig(
             objective=objective,
             time_limit_seconds=min(solver_timeout, 3600),
-            # clamp like solver_timeout: an out-of-range LLM tool call gets
-            # the nearest valid value, not a raw pydantic ValidationError
-            mip_gap=min(max(mip_gap, 0.0), 0.1),
+            # clamp like solver_timeout: a negative LLM tool call gets the
+            # nearest valid value (0), not a raw pydantic ValidationError
+            mip_gap=max(mip_gap, 0.0),
             relax_binary_variables=True,
         )
 

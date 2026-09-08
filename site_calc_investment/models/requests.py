@@ -94,12 +94,17 @@ class OptimizationConfig(BaseModel):
     mip_gap: float = Field(
         0.01,
         ge=0.0,
-        le=0.1,
+        allow_inf_nan=False,
         description=(
             "Relative MIP optimality gap the solver may stop at "
             "(0.01 = accept solutions proven within 1% of the optimum; "
             "0 = request a zero gap, proving full optimality unless "
-            "time_limit_seconds expires first). Smaller gaps solve longer."
+            "time_limit_seconds expires first). Any value >= 0 is accepted: "
+            "smaller gaps solve longer, larger gaps return sooner with a "
+            "looser guarantee. Services below 1.5.1 reject values above 0.1 at submission."
+            " It is a fraction, not a percent: pass 0.01 for 1%, not 1. There is no "
+            "upper bound, so a gap of 1 or more is accepted silently and effectively "
+            "drops the optimality guarantee (the first feasible plan is returned)."
         ),
     )
     relax_binary_variables: bool = Field(
