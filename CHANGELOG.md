@@ -5,6 +5,27 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.3] - 2026-09-08
+
+### Added
+
+- `Summary.is_optimal`, `Summary.termination_reason` and
+  `Summary.optimality_gap`: whether the returned plan was proven optimal
+  within `mip_gap`, why the solver stopped (`optimal`, `time_limit`, ...),
+  and the relative gap to the proven bound. Services from 1.5.2 fill them;
+  older services leave them `None`.
+- `compare_scenarios` carries `optimality_gap` per scenario and
+  `print_comparison` shows it.
+- MCP `get_job_result` includes the three fields in `summary` and adds a
+  `warning` string when the plan is not proven optimal.
+
+### Changed
+
+- `Summary.solver_status` is documented as `Optimal` (proven within
+  `mip_gap`) or `Feasible` (the time limit cut the solve short; the plan is
+  the best found so far). Previously a job that hit the time limit was
+  reported as `Optimal`.
+
 ## [1.5.2] - 2026-09-08
 
 ### Changed

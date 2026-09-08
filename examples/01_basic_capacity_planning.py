@@ -135,6 +135,10 @@ def main():
     summary = result.summary
     print(f"\nSolver Status: {summary.solver_status}")
     print(f"Solve Time: {summary.solve_time_seconds:.1f}s")
+    if summary.is_optimal is False:  # None = older service that does not report it; only False means "not proven"
+        # "Feasible": the time limit cut the solve short; the plan is the best
+        # found so far and may be up to optimality_gap away from the optimum.
+        print(f"Stopped early ({summary.termination_reason}); relative optimality gap: {summary.optimality_gap}")
 
     if summary.expected_profit is not None:
         print(f"Expected Profit: EUR {summary.expected_profit:,.2f}")
