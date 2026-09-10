@@ -15,6 +15,13 @@ from site_calc_investment.api.client import InvestmentClient
 from site_calc_investment.mcp import server
 from site_calc_investment.mcp.scenario import ScenarioStore
 
+try:
+    from mcp.shared.exceptions import MCPError
+    from mcp_types import INVALID_PARAMS
+except ImportError:  # MCP 1.x, supported by older FastMCP releases.
+    from mcp.shared.exceptions import McpError as MCPError
+    from mcp.types import INVALID_PARAMS
+
 Wire = tuple[list[httpx.Request], dict[str, Any]]
 
 CERTIFICATE = {
@@ -125,8 +132,12 @@ async def test_submission_schema_keeps_new_controls_optional() -> None:
 @pytest.mark.parametrize("options", [{"strategy": "invalid"}, {"soc_boundary_policy": "invalid"}, {"abs_gap": -1}])
 async def test_invalid_controls_do_not_submit(ready_scenario: str, wire: Wire, options: dict) -> None:
     async with Client(server.mcp) as client:
-        with pytest.raises(ToolError):
+        # Newer MCP releases report argument validation at the protocol layer.
+        # Accept that specific rejection, but not transport or internal errors.
+        with pytest.raises((ToolError, MCPError)) as rejected:
             await client.call_tool("submit_scenario", {"scenario_id": ready_scenario, **options})
+    if isinstance(rejected.value, MCPError):
+        assert rejected.value.error.code == INVALID_PARAMS
     assert wire[0] == []
     assert server._store.get(ready_scenario).jobs == []
 
@@ -134,8 +145,9 @@ async def test_invalid_controls_do_not_submit(ready_scenario: str, wire: Wire, o
 @pytest.mark.parametrize("field", ["mip_gap", "abs_gap"])
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 def test_builder_rejects_nonfinite_tolerances(ready_scenario: str, field: str, value: float) -> None:
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as rejected:
         server._store.build_request(ready_scenario, **{field: value})
+    assert [(error["loc"], error["type"]) for error in rejected.value.errors()] == [((field,), "finite_number")]
 
 
 @pytest.mark.asyncio
