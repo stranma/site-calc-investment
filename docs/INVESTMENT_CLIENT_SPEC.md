@@ -145,9 +145,10 @@ off, use sizing reservations instead (see Section 4.4):
   one-shot investment cost in EUR/MW).
 - `capacity_sizing` -- the optimizer sizes energy capacity (MWh) up to
   `capacity`, priced by a tariff menu (use `periods="horizon"` for a
-  one-shot investment cost in EUR/MWh). An optimizer-sized capacity must
-  start empty: `initial_soc` defaults to 0 for sizing runs and must not
-  be set above 0 (fix `reserved` to keep a non-zero initial SOC).
+  one-shot investment cost in EUR/MWh). An optimizer-sized capacity starts
+  empty by default. Positive opening stock requires explicit
+  `initial_soc_basis="built_capacity"` together with `initial_soc`, or
+  a fixed `reserved` capacity. The basis alone keeps the default at zero.
 - `degradation_yearly` -- yearly capacity degradation curve in percent,
   one entry per model year: `[5, 3, 2]` = 5% in year 1, 3% in year 2,
   2% in year 3. The curve must include at least one entry for every
@@ -162,8 +163,28 @@ off, use sizing reservations instead (see Section 4.4):
   undegraded first year). `initial_soc` must not exceed the year-1
   factor (the stock default adapts automatically). Model years are
   fixed 8760-hour blocks matching the annual-aggregation convention
-  (no leap days). Power ratings are unaffected. Not combinable with SOC
-  anchor points or an optimizer-sized `capacity_sizing`.
+  (no leap days). Power ratings are unaffected. Not combinable with an
+  optimizer-sized `capacity_sizing`. SOC anchors must fit the degraded
+  energy capacity to remain feasible.
+
+Battery and heat-accumulator properties also accept `initial_soc_basis`
+(`"default"` or `"built_capacity"`) and `soc_anchor_indices`. For example,
+an optimized battery with `initial_soc_basis="built_capacity", initial_soc=0.5`
+starts with half its actual installed energy capacity, not half its sizing
+ceiling. Omitted fields preserve the opening-stock defaults above.
+
+For T intervals, `soc_anchor_indices` is a strictly increasing array of
+integers in 1..T: index k fixes the state after interval k, and T includes
+the terminal state. Callers may supply calendar boundaries explicitly.
+Indices cannot be combined with the legacy `soc_anchor_interval_hours`
+cadence. `soc_anchor_target` defaults to 0.5 and denotes a finite fraction
+in [0, 1] of installed energy capacity. Anchors support fixed and optimized
+battery energy capacity.
+
+The selected `monthly_fixed` policy adds exact calendar month-end and
+terminal SOC constraints at half installed capacity; it leaves opening
+stock unchanged and also applies on monolithic fallback. Use `preserve`
+to retain only the explicitly requested SOC constraints.
 
 #### 4.2.2 CHP
 

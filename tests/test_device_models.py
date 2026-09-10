@@ -500,20 +500,21 @@ class TestCapacityReservation:
         )
         assert props.initial_soc == 0.7
 
-    def test_battery_capacity_sizing_rejects_soc_anchors(self):
-        """capacity_sizing is incompatible with SOC anchor points."""
+    def test_battery_capacity_sizing_accepts_soc_anchors(self):
+        """Anchors target installed energy, including optimized energy."""
         sizing = CapacityReservation(
             periods="horizon",
             tariffs=[CapacityTariff(name="capex", reserved_price=30_000.0, peak_price=0.0)],
         )
-        with pytest.raises(ValidationError, match="anchor"):
-            BatteryProperties(
-                capacity=8.0,
-                max_power=10.0,
-                efficiency=0.92,
-                soc_anchor_interval_hours=4320,
-                capacity_sizing=sizing,
-            )
+        props = BatteryProperties(
+            capacity=8.0,
+            max_power=10.0,
+            efficiency=0.92,
+            soc_anchor_interval_hours=4320,
+            capacity_sizing=sizing,
+        )
+        assert props.initial_soc == 0.0
+        assert props.soc_anchor_interval_hours == 4320
 
 
 class TestBatteryDegradation:
@@ -541,9 +542,9 @@ class TestBatteryDegradation:
         with pytest.raises(ValidationError, match="0, 100"):
             self._props(degradation_yearly=[100])
 
-    def test_soc_anchors_rejected(self):
-        with pytest.raises(ValidationError, match="anchor"):
-            self._props(degradation_yearly=[5], soc_anchor_interval_hours=4320)
+    def test_soc_anchors_allowed_with_degradation(self):
+        props = self._props(degradation_yearly=[5], soc_anchor_interval_hours=4320)
+        assert props.soc_anchor_target == 0.5
 
     def test_optimized_capacity_sizing_rejected(self):
         sizing = CapacityReservation(

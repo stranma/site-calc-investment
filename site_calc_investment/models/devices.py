@@ -2,14 +2,58 @@
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, model_validator
 
 from site_calc_investment.models.capacity import CapacityReservation, CapacityTariff, DeviceInvestment
 
 # Device Properties Models
 
 
-class BatteryProperties(BaseModel):
+class StorageSOCProperties(BaseModel):
+    """Public SOC controls for electric and thermal storage."""
+
+    initial_soc_basis: Literal["default", "built_capacity"] = Field(
+        "default",
+        description=(
+            "Explicit built_capacity permits initial_soc times the installed energy "
+            "capacity when capacity is optimized. It does not change initial_soc."
+        ),
+    )
+    soc_anchor_indices: List[StrictInt] = Field(
+        default_factory=list,
+        description=(
+            "Strictly increasing state indices in 1..T, where T is the interval count. "
+            "An index k fixes SOC after interval k; T includes the terminal state."
+        ),
+    )
+    soc_anchor_interval_hours: Optional[float] = Field(
+        None,
+        strict=True,
+        allow_inf_nan=False,
+        description="Legacy elapsed-hour anchor cadence; positive values enable it. Exclusive with explicit indices.",
+    )
+    soc_anchor_target: float = Field(
+        0.5,
+        ge=0,
+        le=1,
+        strict=True,
+        allow_inf_nan=False,
+        description="Exact anchored SOC fraction of installed energy capacity (0-1)",
+    )
+
+    @model_validator(mode="after")
+    def validate_soc_anchors(self) -> "StorageSOCProperties":
+        """Require ordered integer boundaries and one anchor specification."""
+        if any(index <= 0 for index in self.soc_anchor_indices) or any(
+            a >= b for a, b in zip(self.soc_anchor_indices, self.soc_anchor_indices[1:], strict=False)
+        ):
+            raise ValueError("soc_anchor_indices must be positive and strictly increasing")
+        if self.soc_anchor_indices and self.soc_anchor_interval_hours is not None:
+            raise ValueError("Pass soc_anchor_indices or soc_anchor_interval_hours, not both")
+        return self
+
+
+class BatteryProperties(StorageSOCProperties):
     """Battery storage properties."""
 
     model_config = ConfigDict(extra="forbid")
@@ -18,17 +62,6 @@ class BatteryProperties(BaseModel):
     max_power: float = Field(..., gt=0, description="Power rating for charge/discharge (MW)")
     efficiency: float = Field(..., gt=0, le=1, description="Round-trip efficiency (0-1)")
     initial_soc: float = Field(0.5, ge=0, le=1, description="Initial state of charge (0-1)")
-    soc_anchor_interval_hours: Optional[int] = Field(
-        None,
-        gt=0,
-        description="If set, force SOC to target at regular intervals (hours). E.g., 4320 = every 6 months",
-    )
-    soc_anchor_target: float = Field(
-        0.5,
-        ge=0,
-        le=1,
-        description="Target SOC fraction at anchor points (0-1)",
-    )
     power_sizing: Optional[CapacityReservation] = Field(
         None,
         description=(
@@ -43,8 +76,8 @@ class BatteryProperties(BaseModel):
             "ceiling. The full reservation form is accepted (calendar periods, tariff "
             "menus, bounds, timezone); periods='horizon' with reserved_price tiers "
             "(EUR/MWh) is the one-shot CAPEX case. An optimizer-sized capacity must "
-            "start empty: initial_soc defaults to 0 and must not be set above 0 "
-            "unless 'reserved' fixes the capacity"
+            "start empty by default: initial_soc defaults to 0. Positive initial_soc "
+            "requires a fixed reserved capacity or explicit initial_soc_basis='built_capacity'"
         ),
     )
     degradation_yearly: Optional[List[float]] = Field(
@@ -62,7 +95,7 @@ class BatteryProperties(BaseModel):
             "from the START of the year it occurs (conservative: year 1 already runs "
             "at 95% in the example; prepend 0 for an undegraded first year). "
             "initial_soc must not exceed the year-1 factor (the default adapts). Not "
-            "combinable with SOC anchor points or an optimizer-sized capacity_sizing."
+            "combinable with an optimizer-sized capacity_sizing. Anchors must fit the degraded capacity."
         ),
     )
 
@@ -75,10 +108,6 @@ class BatteryProperties(BaseModel):
                 raise ValueError("degradation_yearly must not be empty")
             if any(not 0 <= d < 100 for d in curve):
                 raise ValueError(f"degradation_yearly values must be in [0, 100), got {curve}")
-            if self.soc_anchor_interval_hours is not None:
-                raise ValueError(
-                    "degradation_yearly cannot be combined with SOC anchor points (soc_anchor_interval_hours)"
-                )
             if self.capacity_sizing is not None and self.capacity_sizing.reserved is None:
                 raise ValueError(
                     "degradation_yearly cannot be combined with an optimizer-sized "
@@ -103,30 +132,17 @@ class BatteryProperties(BaseModel):
 
     @model_validator(mode="after")
     def validate_capacity_sizing(self) -> "BatteryProperties":
-        """Enforce the server's rules for capacity_sizing.
-
-        An optimizer-sized energy capacity must start empty: every built
-        MWh would otherwise arrive holding ``initial_soc`` MWh of free
-        energy, distorting the sizing. When ``initial_soc`` is not set
-        explicitly, sizing runs default it to 0 (the stock 0.5 default
-        only makes sense for a fixed capacity). SOC anchor points are
-        incompatible with capacity_sizing (anchors target a fraction of
-        the ceiling, which may exceed the built capacity).
-        """
+        """Keep optimized energy empty unless an explicit built-capacity fill is requested."""
         cs = self.capacity_sizing
         if cs is not None:
-            if self.soc_anchor_interval_hours is not None:
-                raise ValueError(
-                    "capacity_sizing cannot be combined with SOC anchor points (soc_anchor_interval_hours)"
-                )
             if cs.reserved is None:
                 if "initial_soc" not in self.model_fields_set:
                     self.initial_soc = 0.0
-                elif self.initial_soc > 0:
+                elif self.initial_soc > 0 and self.initial_soc_basis != "built_capacity":
                     raise ValueError(
                         "initial_soc > 0 cannot be combined with an optimizer-sized "
                         "capacity_sizing (no fixed 'reserved' value); use initial_soc=0 "
-                        "or fix the reserved capacity"
+                        "or fix the reserved capacity, or explicitly select initial_soc_basis='built_capacity'"
                     )
         return self
 
@@ -141,7 +157,7 @@ class CHPProperties(BaseModel):
     min_power: Optional[float] = Field(None, ge=0, le=1, description="Min power fraction if modulation limited")
 
 
-class HeatAccumulatorProperties(BaseModel):
+class HeatAccumulatorProperties(StorageSOCProperties):
     """Heat accumulator (thermal storage) properties."""
 
     capacity: float = Field(..., gt=0, description="Thermal energy capacity (MWh)")
