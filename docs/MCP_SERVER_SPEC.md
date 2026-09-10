@@ -250,9 +250,42 @@ Submit a draft scenario for server-side optimization.
 | `scenario_id` | string | Yes | | Scenario to submit |
 | `objective` | string | No | `maximize_profit` | Optimization objective |
 | `solver_timeout` | int | No | 300 | Time limit in seconds (max 3600) |
-| `mip_gap` | float | No | 0.01 | Relative MIP optimality gap; 0 = prove optimality; any value >= 0 |
+| `mip_gap` | float or null | No | 0.01 | Relative tolerance as a fraction; `0.01` = 1%; null omits this criterion |
+| `strategy` | string or null | No | null | `auto`, `monolithic`, or `decomposed`; null uses the service default |
+| `abs_gap` | float or null | No | null | Finite nonnegative absolute tolerance in objective units |
+| `soc_boundary_policy` | string or null | No | null | `preserve` or `monthly_fixed`; null uses the service-selected policy |
 
 Objectives: `maximize_profit`, `minimize_cost`, `maximize_self_consumption`.
+
+The MCP helper keeps its legacy explicit **1% relative request** when `mip_gap`
+is omitted. This also applies when `abs_gap` is supplied: both criteria are then
+enabled, and satisfying either can establish optimality. For absolute-only
+tolerance, pass `mip_gap: null`; for service-default tolerances, pass both gaps
+as null. New controls left null are omitted from the HTTP request. Relative
+gaps must be finite; the helper retains its legacy clamp of finite negative
+`mip_gap` to zero. A zero tolerance requests zero gap but does not guarantee
+completion before a time or other limit.
+
+For example, an absolute-only request with automatic strategy selection:
+
+```json
+{
+  "scenario_id": "sc_example",
+  "strategy": "auto",
+  "mip_gap": null,
+  "abs_gap": 25.0,
+  "soc_boundary_policy": "monthly_fixed"
+}
+```
+
+Explicit `decomposed` fails for an unsupported model. `auto` may fall back to
+`monolithic`; inspect the result's used strategy and fallback reason.
+`preserve` keeps the requested SOC constraints. `monthly_fixed` adds exact
+month-end constraints in the planning timezone and at the terminal boundary
+(including a partial final month), each at half the installed energy capacity.
+For optimized capacity this means the selected installed capacity. This changes
+the model and applies on monolithic fallback too. These controls require a
+service implementing the contract; the client validates and forwards them.
 
 **Returns:** `{"job_id": "...", "status": "pending"}`
 
@@ -301,11 +334,31 @@ for multi-site results). Each entry lists:
 At `detail_level="full"`, each device schedule additionally carries the raw
 per-period breakdown (`start`, `end`, `peak`, `tariff`, `payment`).
 
-Every detail level's `summary` carries `solver_status` (`Optimal`, or
-`Feasible` when the time limit cut the solve short), `is_optimal`,
-`termination_reason` and `optimality_gap`. A `Feasible` result is the best
-plan found so far; `optimality_gap` is how far (relative) it may be from the
-true optimum, and the dict then also carries a `warning` string saying so.
+Every detail level, including `summary`, carries the same compact certificate
+fields alongside the existing profit, cost and solver-time totals:
+
+| Summary field | Meaning |
+| --- | --- |
+| `solver_status` | Service-reported solver status; completion alone does not establish optimality |
+| `is_optimal` | Whether valid bounds satisfy an enabled tolerance; null if not reported |
+| `termination_reason` | Actual stop reason, independent of certification |
+| `objective_lower_bound`, `objective_upper_bound` | Bounds on the selected model's optimum, including objective constants |
+| `absolute_gap` | Upper minus lower bound, in objective units; null if either bound is unknown |
+| `optimality_gap` | Service-reported relative gap as a fraction; null if unknown |
+| `requested_strategy`, `used_strategy` | Requested and actual solve strategies |
+| `fallback_reason` | Reason for automatic fallback, or null |
+| `soc_boundary_policy` | Model policy to which the bounds apply |
+| `elapsed_time_seconds` | Total optimization time including preparation and extraction; `solve_time_seconds` remains solver time |
+
+Unknown optional fields remain JSON null, including when older services omit
+them. The client does not infer missing bounds from status labels. For
+maximization a feasible plan supplies a lower bound; for minimization it
+supplies an upper bound. Bounds for `monthly_fixed` do not certify the
+corresponding `preserve` model. An absolute tolerance can certify a result even
+when its relative gap exceeds `mip_gap`; `is_optimal` can be true with a
+`time_limit` termination reason. A warning is included only when `is_optimal`
+is explicitly false. More solve time or looser tolerances do not guarantee
+certification.
 
 **Returns:** Result dict at requested detail level.
 
