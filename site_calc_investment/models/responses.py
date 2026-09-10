@@ -185,7 +185,10 @@ class Summary(BaseModel):
         None,
         ge=0.0,
         allow_inf_nan=False,
-        description="Total optimization elapsed time, including model preparation and result extraction, if reported",
+        description=(
+            "Optimization elapsed time including preparation and extraction; for a recovered checkpoint, "
+            "elapsed time at snapshot capture. Job.total_time includes the later timeout and cleanup."
+        ),
     )
 
 

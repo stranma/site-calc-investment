@@ -924,7 +924,9 @@ does not reconstruct missing certificates from a status label.
 require the actual `termination_reason` to be `optimal`.
 `elapsed_time_seconds` reports total optimization elapsed time, including
 model preparation and result extraction, while the existing
-`solve_time_seconds` remains solver time. All new summary fields are nullable
+`solve_time_seconds` remains solver time. For a recovered checkpoint,
+`elapsed_time_seconds` records snapshot-capture time; the polled `Job.total_time`
+includes the subsequent timeout and cleanup. All new summary fields are nullable
 and may be absent on older services. Submission, polling, result retrieval,
 and cancellation use the existing job API unchanged.
 
