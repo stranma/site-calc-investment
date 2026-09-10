@@ -80,6 +80,14 @@ if result.summary.is_optimal is False:  # "is False", not "not ...": None means 
     print(f"Stopped early ({result.summary.termination_reason}), relative gap {result.summary.optimality_gap}")
 ```
 
+Optional `OptimizationConfig` fields select `strategy`, absolute or relative
+tolerance (`abs_gap` / `mip_gap`), and `soc_boundary_policy`. Unspecified values
+use service defaults; pass `mip_gap=0.01` explicitly to keep the previous 1%
+relative request. The `monthly_fixed` policy fixes month-end and terminal SOC
+to half the installed energy capacity, including on monolithic fallback.
+See [strategy, bounds, and model-policy behavior](docs/INVESTMENT_CLIENT_SPEC.md#1111-strategy-tolerances-and-soc-boundary-policy)
+before choosing a policy or interpreting nullable result bounds.
+
 ## Features
 
 - ✅ Long-term capacity planning (1-10 years)

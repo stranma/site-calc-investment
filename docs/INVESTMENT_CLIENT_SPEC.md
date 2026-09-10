@@ -444,7 +444,7 @@ request = InvestmentPlanningRequest(
     optimization_config=OptimizationConfig(
         objective="maximize_profit",
         time_limit_seconds=3600,  # 60 minute maximum
-        mip_gap=0.01,  # stop within 1% of the proven optimum (default)
+        mip_gap=0.01,  # explicitly request a 1% relative tolerance
         relax_binary_variables=True,
     ),
 )
@@ -849,12 +849,63 @@ time grows with horizon length, device count, and the number of capacity
 reservations. Keeping `relax_binary_variables=True` (the default) is what
 makes 10-year horizons tractable within the limit.
 
-Hitting the limit does not fail the job. The service returns the best plan
-found so far with `summary.solver_status == "Feasible"`, `is_optimal ==
-False`, `termination_reason == "time_limit"` and `optimality_gap` (relative
-distance to the proven bound; `None` if no bound was reached). Only
-`"Optimal"` means the plan was proven optimal within `mip_gap`. Raise
-`time_limit_seconds`, or accept a larger `mip_gap`, to get a proven result.
+When the time limit is reached, a feasible plan may still be returned. A
+completed job does not by itself establish optimality. Check `is_optimal`
+and the reported bounds; `termination_reason` retains the actual stop
+reason, even if the bounds already satisfy an enabled tolerance.
+
+### 11.1.1 Strategy, tolerances, and SOC boundary policy
+
+`OptimizationConfig` accepts the following optional controls. `None` values
+are omitted from the API payload. They require a service that implements
+this contract; the client only validates and transmits the request.
+
+| Option | Meaning |
+| --- | --- |
+| `strategy` | `auto`, `monolithic`, or `decomposed`; omitted means service default. |
+| `abs_gap` | Finite, nonnegative absolute optimality tolerance in objective units. |
+| `mip_gap` | Finite, nonnegative relative tolerance as a fraction; `0.01` means 1%. |
+| `soc_boundary_policy` | `preserve` or `monthly_fixed`; omitted means service-selected policy. |
+
+An explicit `decomposed` request fails for an unsupported model. `auto` may
+fall back to `monolithic`; the result reports `requested_strategy`,
+`used_strategy`, and `fallback_reason` when available.
+
+`preserve` retains the requested SOC constraints. `monthly_fixed` adds exact
+storage energy constraints at calendar month-end boundaries in the planning
+timezone and at the terminal horizon boundary (including a partial final
+month): SOC energy equals `0.5 * installed energy capacity`. For optimized
+capacity, this means the installed capacity selected in the result, not a
+capacity upper limit. This is a model policy that can change the feasible
+plans and optimum. It applies equally to monolithic and decomposed solves,
+including monolithic fallback. The result's `soc_boundary_policy` identifies
+the model to which its bounds apply; bounds for `monthly_fixed` do not certify
+the corresponding `preserve` model.
+
+Supplying only `abs_gap` requests only the absolute criterion; supplying only
+`mip_gap` requests only the relative criterion. If both are supplied, either
+criterion may establish optimality. A zero tolerance requests a zero gap but
+does not guarantee completion before a limit. If neither is supplied, the
+service selects its default tolerance; no fixed absolute default is promised
+by this client. `OptimizationConfig().mip_gap` now defaults to `None` rather
+than `0.01`. Pass `mip_gap=0.01` explicitly to retain the previous request.
+Helpers that explicitly supply a relative gap continue to request it.
+
+`summary.objective_lower_bound` and `objective_upper_bound` bracket the optimum
+of the selected model, in the same objective units and including objective
+constants. For maximization, a feasible plan supplies a lower bound; for
+minimization it supplies an upper bound. Unknown bounds are JSON `null`,
+parsed as `None`. `absolute_gap` is upper minus lower, or `None` when either
+bound is unknown; `optimality_gap` is the reported relative gap. The client
+does not reconstruct missing certificates from a status label.
+
+`is_optimal=True` means valid bounds satisfy an enabled tolerance; it does not
+require the actual `termination_reason` to be `optimal`.
+`elapsed_time_seconds` reports total optimization elapsed time, including
+model preparation and result extraction, while the existing
+`solve_time_seconds` remains solver time. All new summary fields are nullable
+and may be absent on older services. Submission, polling, result retrieval,
+and cancellation use the existing job API unchanged.
 
 ### 11.2 Binary Variable Relaxation
 
