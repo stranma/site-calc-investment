@@ -8,6 +8,30 @@ Python client for Site-Calc investment planning API - long-term capacity plannin
 pip install site-calc-investment
 ```
 
+## Service compatibility
+
+Use **site-calc-investment 1.5.4** with the investment service release deployed on
+**2026-09-11**. That service reports **API 1.5** and **server 1.5.2** at `/health`.
+Earlier server 1.5.2 builds predate the strategy controls, so the version number
+alone does not establish support; confirm the deployed release with your service
+operator when using another installation.
+
+| Client | Compatibility with the 2026-09-11 investment service |
+| --- | --- |
+| **1.5.4** | Full Python/MCP strategy and SOC-policy controls, absolute/relative tolerances, and result certificates. |
+| **1.5.3** | Existing planning, polling, results, and cancellation APIs remain available; upgrade for the new controls and typed certificate fields. |
+
+Jobs remain asynchronous. Unspecified options follow the service's defaults,
+including its monthly-fixed SOC policy; use the explicit controls in 1.5.4 when
+you need a particular policy. New response fields are optional when reading
+results from older services, but older services may not implement new request
+options. Match client and service API MAJOR.MINOR versions and confirm feature
+support before requesting decomposition on an older deployment.
+
+```bash
+pip install "site-calc-investment==1.5.4"
+```
+
 ## Quick Start
 
 ```python

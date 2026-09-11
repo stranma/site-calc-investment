@@ -5,6 +5,29 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.4] - 2026-09-11
+
+### Added
+
+- Python and MCP controls for `auto`, `monolithic`, and `decomposed` strategy,
+  absolute/relative optimality tolerances, and SOC boundary policy.
+- Optional objective certificates, requested/used strategy, fallback reason,
+  and elapsed-time metadata in results. Older responses remain readable.
+- Storage opening-stock basis and exact SOC anchor controls.
+- A service compatibility table: this client targets the investment service
+  deployed on 2026-09-11 (API 1.5, server 1.5.2). Earlier server 1.5.2 builds
+  do not establish support for the new request options.
+
+### Changed
+
+- Python's unspecified `mip_gap` is omitted so the service can choose defaults;
+  pass `mip_gap=0.01` explicitly to retain a 1% relative tolerance. The MCP
+  submission tool retains its 0.01 default; set `mip_gap=null` when requesting
+  an absolute-only tolerance.
+- The documented service defaults are automatic strategy selection and
+  monthly-fixed SOC. Explicit decomposition fails when unsupported; automatic
+  selection may fall back while retaining the selected SOC policy.
+
 ## [1.5.3] - 2026-09-08
 
 ### Added
