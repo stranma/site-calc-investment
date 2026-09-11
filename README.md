@@ -8,6 +8,30 @@ Python client for Site-Calc investment planning API - long-term capacity plannin
 pip install site-calc-investment
 ```
 
+## Service compatibility
+
+Use **site-calc-investment 1.5.4** with the investment service release deployed on
+**2026-09-11**. That service reports **API 1.5** and **server 1.5.2** at `/health`.
+Earlier server 1.5.2 builds predate the strategy controls, so the version number
+alone does not establish support; confirm the deployed release with your service
+operator when using another installation.
+
+| Client | Compatibility with the 2026-09-11 investment service |
+| --- | --- |
+| **1.5.4** | Full Python/MCP strategy and SOC-policy controls, absolute/relative tolerances, and result certificates. |
+| **1.5.3** | Existing planning, polling, results, and cancellation APIs remain available; upgrade for the new controls and typed certificate fields. |
+
+Jobs remain asynchronous. Unspecified options follow the service's defaults,
+including its monthly-fixed SOC policy; use the explicit controls in 1.5.4 when
+you need a particular policy. New response fields are optional when reading
+results from older services, but older services may not implement new request
+options. Match client and service API MAJOR.MINOR versions and confirm feature
+support before requesting decomposition on an older deployment.
+
+```bash
+pip install "site-calc-investment==1.5.4"
+```
+
 ## Quick Start
 
 ```python
@@ -79,6 +103,14 @@ if result.summary.is_optimal is False:  # "is False", not "not ...": None means 
     # Best plan found so far; optimality_gap says how far it may be from the true optimum
     print(f"Stopped early ({result.summary.termination_reason}), relative gap {result.summary.optimality_gap}")
 ```
+
+Optional `OptimizationConfig` fields select `strategy`, absolute or relative
+tolerance (`abs_gap` / `mip_gap`), and `soc_boundary_policy`. Unspecified values
+use service defaults; pass `mip_gap=0.01` explicitly to keep the previous 1%
+relative request. The `monthly_fixed` policy fixes month-end and terminal SOC
+to half the installed energy capacity, including on monolithic fallback.
+See [strategy, bounds, and model-policy behavior](docs/INVESTMENT_CLIENT_SPEC.md#1111-strategy-tolerances-and-soc-boundary-policy)
+before choosing a policy or interpreting nullable result bounds.
 
 ## Features
 

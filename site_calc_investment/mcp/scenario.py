@@ -2,6 +2,7 @@
 
 import uuid
 from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any, Literal, Optional, cast
 
 from pydantic import ValidationError as PydanticValidationError
@@ -525,9 +526,16 @@ class ScenarioStore:
         scenario_id: str,
         objective: Literal["maximize_profit", "minimize_cost", "maximize_self_consumption"] = "maximize_profit",
         solver_timeout: int = 300,
-        mip_gap: float = 0.01,
+        mip_gap: Optional[float] = 0.01,
+        strategy: Optional[Literal["auto", "monolithic", "decomposed"]] = None,
+        abs_gap: Optional[float] = None,
+        soc_boundary_policy: Optional[Literal["preserve", "monthly_fixed"]] = None,
     ) -> InvestmentPlanningRequest:
         """Convert draft scenario to an InvestmentPlanningRequest.
+
+        Omitted mip_gap retains the MCP helper's explicit 1% request. Pass
+        None to omit it, including when requesting only an absolute tolerance.
+        New controls remain unspecified unless selected by the caller.
 
         :raises ValueError: If scenario is not ready (missing devices or timespan).
         """
@@ -586,9 +594,12 @@ class ScenarioStore:
         opt_config = OptimizationConfig(
             objective=objective,
             time_limit_seconds=min(solver_timeout, 3600),
-            # clamp like solver_timeout: a negative LLM tool call gets the
-            # nearest valid value (0), not a raw pydantic ValidationError
-            mip_gap=max(mip_gap, 0.0),
+            # Preserve the legacy finite-negative clamp, but let the model
+            # reject nonfinite values and retain None as unspecified.
+            mip_gap=max(mip_gap, 0.0) if mip_gap is not None and isfinite(mip_gap) else mip_gap,
+            strategy=strategy,
+            abs_gap=abs_gap,
+            soc_boundary_policy=soc_boundary_policy,
             relax_binary_variables=True,
         )
 

@@ -208,7 +208,10 @@ def submit_scenario(
     scenario_id: str,
     objective: str = "maximize_profit",
     solver_timeout: int = 300,
-    mip_gap: float = 0.01,
+    mip_gap: Optional[float] = 0.01,
+    strategy: Optional[Literal["auto", "monolithic", "decomposed"]] = None,
+    abs_gap: Optional[float] = None,
+    soc_boundary_policy: Optional[Literal["preserve", "monthly_fixed"]] = None,
 ) -> dict[str, str]:
     """Submit a draft scenario for optimization.
 
@@ -220,12 +223,21 @@ def submit_scenario(
     :param scenario_id: Scenario to submit.
     :param objective: Optimization objective (default: maximize_profit).
     :param solver_timeout: Solver time limit in seconds (max 3600).
-    :param mip_gap: Relative MIP optimality gap (0.01 = stop within 1% of
-        the optimum, the default; 0 = request a zero gap, proving full
-        optimality unless solver_timeout expires first; any value >= 0,
-        larger gaps return sooner with a looser guarantee; a fraction, not
-        a percent: 0.01 means 1%, and 1 or more drops the optimality
-        guarantee).
+    :param mip_gap: Relative tolerance as a fraction (0.01 = 1%). Omission
+        retains this tool's legacy 1% request, even when abs_gap is supplied.
+        Pass null to leave the relative criterion unspecified. Finite negative
+        values retain the legacy clamp to zero; zero requests a zero gap but
+        does not guarantee completion before a limit.
+    :param strategy: auto, monolithic or decomposed; null uses the service
+        default. Explicit decomposed fails for unsupported models; auto may
+        fall back to monolithic while keeping the selected SOC policy.
+    :param abs_gap: Finite nonnegative absolute tolerance in objective units.
+        Use mip_gap=null for absolute-only tolerance. If both are supplied,
+        either criterion may certify optimality; both null use service defaults.
+    :param soc_boundary_policy: preserve retains requested SOC constraints;
+        monthly_fixed additionally fixes calendar month-end and terminal SOC
+        to half the installed energy capacity, including on monolithic fallback.
+        Null leaves the policy to the service.
     :returns: Dict with job_id and initial status.
     """
     objective_literal = cast(
@@ -237,6 +249,9 @@ def submit_scenario(
         objective=objective_literal,
         solver_timeout=solver_timeout,
         mip_gap=mip_gap,
+        strategy=strategy,
+        abs_gap=abs_gap,
+        soc_boundary_policy=soc_boundary_policy,
     )
     client = _get_client()
     job = client.create_planning_job(request)
@@ -278,10 +293,12 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
     - "monthly": Summary + monthly breakdown per device.
     - "full": All data including hourly schedules. WARNING: can be very large (87K+ values).
 
-    The summary always carries solver_status ("Optimal", or "Feasible" when the
-    time limit cut the solve short), is_optimal, termination_reason and
-    optimality_gap; when is_optimal is False a "warning" string explains that
-    the plan is the best found so far and how to get a proven one.
+    Every detail level carries objective bounds, absolute/relative gaps,
+    requested/used strategy, fallback reason, SOC policy, elapsed time and
+    solver status. Unknown optional fields are null, including on older
+    services. is_optimal reports tolerance certification independently of
+    termination_reason; a time-limit stop can still be certified. Bounds apply
+    only to the reported SOC policy. Missing certificates are never inferred.
 
     :param job_id: Job identifier.
     :param detail_level: One of "summary", "monthly", "full" (default: "summary").
@@ -305,13 +322,22 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
             "termination_reason": response.summary.termination_reason,
             "optimality_gap": response.summary.optimality_gap,
             "solve_time_seconds": response.summary.solve_time_seconds,
+            "objective_lower_bound": response.summary.objective_lower_bound,
+            "objective_upper_bound": response.summary.objective_upper_bound,
+            "absolute_gap": response.summary.absolute_gap,
+            "requested_strategy": response.summary.requested_strategy,
+            "used_strategy": response.summary.used_strategy,
+            "fallback_reason": response.summary.fallback_reason,
+            "soc_boundary_policy": response.summary.soc_boundary_policy,
+            "elapsed_time_seconds": response.summary.elapsed_time_seconds,
         },
     }
     if response.summary.is_optimal is False:
         result["summary"]["warning"] = (
-            f"The solver stopped early ({response.summary.termination_reason}) and returned the best "
-            f"plan found so far; relative optimality gap {response.summary.optimality_gap}. Resubmit "
-            "with a larger solver_timeout (up to 3600 s), or a larger mip_gap, for a proven result."
+            f"Optimality was not certified (stop reason: {response.summary.termination_reason}); "
+            f"reported relative gap {response.summary.optimality_gap}. Review the bounds and selected SOC policy. "
+            "A larger solver_timeout (up to 3600 s) or a looser enabled tolerance may help; "
+            "neither guarantees certification."
         )
 
     if response.investment_metrics:

@@ -128,11 +128,8 @@ class Summary(BaseModel):
     solver_status: str = Field(
         ...,
         description=(
-            "'Optimal' when the service proved the plan optimal within the requested mip_gap; "
-            "'Feasible' when the solver stopped early (time_limit_seconds reached) and returned "
-            "the best plan found so far. Check is_optimal and optimality_gap before relying on "
-            "a Feasible plan."
-            " Use is_optimal for a reliable check rather than comparing this text."
+            "Service solver status. Use is_optimal for tolerance certification and termination_reason for "
+            "the actual stop reason; a completed job alone does not establish optimality."
         ),
     )
     solve_time_seconds: float = Field(..., ge=0, description="Solver execution time")
@@ -140,23 +137,57 @@ class Summary(BaseModel):
     is_optimal: Optional[bool] = Field(
         None,
         description=(
-            "True when optimality was proven within mip_gap; False when the solver stopped early "
-            "with the best plan found so far; None from services older than 1.5.2"
+            "True when valid objective bounds meet an enabled optimality tolerance; False when not certified; "
+            "None when the service does not report certification. Independent of the actual termination reason."
         ),
     )
     termination_reason: Optional[str] = Field(
         None,
         description=(
-            "Why the solver stopped: 'optimal', 'time_limit', 'iteration_limit', 'interrupt', "
-            "'objective_bound' or 'limit'; None from services older than 1.5.2"
+            "Actual stop reason, such as 'optimal', 'gap_limit', 'time_limit', 'iteration_limit', or 'interrupt'; "
+            "None when not reported. A limit stop may still have is_optimal=True if valid bounds meet a tolerance."
         ),
     )
     optimality_gap: Optional[float] = Field(
         None,
         description=(
-            "Relative gap between the returned plan's objective and the proven bound "
-            "(0.0 = proven optimum, 0.05 = within 5%). Filled for Optimal results too (0.0, or below "
-            "the requested mip_gap); None when the solver had no bound or from services older than 1.5.2"
+            "Reported relative optimality gap as a fraction (0.05 = 5%); None when unknown. "
+            "An absolute tolerance may certify optimality even when this gap exceeds mip_gap."
+        ),
+    )
+    objective_lower_bound: Optional[float] = Field(
+        None,
+        allow_inf_nan=False,
+        description="Certified lower bound on the selected model's objective; None if unknown",
+    )
+    objective_upper_bound: Optional[float] = Field(
+        None,
+        allow_inf_nan=False,
+        description="Certified upper bound on the selected model's objective; None if unknown",
+    )
+    requested_strategy: Optional[Literal["auto", "monolithic", "decomposed"]] = Field(
+        None, description="Requested strategy, if reported by the service"
+    )
+    used_strategy: Optional[Literal["monolithic", "decomposed"]] = Field(
+        None, description="Strategy actually used, if reported by the service"
+    )
+    fallback_reason: Optional[str] = Field(None, description="Reason for automatic fallback, if any")
+    soc_boundary_policy: Optional[Literal["preserve", "monthly_fixed"]] = Field(
+        None, description="SOC boundary policy of the model to which the reported bounds apply"
+    )
+    absolute_gap: Optional[float] = Field(
+        None,
+        ge=0.0,
+        allow_inf_nan=False,
+        description="Objective upper bound minus lower bound, in objective units; None when either bound is unknown",
+    )
+    elapsed_time_seconds: Optional[float] = Field(
+        None,
+        ge=0.0,
+        allow_inf_nan=False,
+        description=(
+            "Optimization elapsed time including preparation and extraction; for a recovered checkpoint, "
+            "elapsed time at snapshot capture. Job.total_time includes the later timeout and cleanup."
         ),
     )
 

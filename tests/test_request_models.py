@@ -95,7 +95,7 @@ class TestOptimizationConfig:
 
         assert config.objective == "maximize_profit"
         assert config.time_limit_seconds == 300
-        assert config.mip_gap == 0.01
+        assert config.mip_gap is None
         assert config.relax_binary_variables is True
 
     def test_optimization_config_mip_gap_bounds(self):

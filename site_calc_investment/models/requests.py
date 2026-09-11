@@ -91,25 +91,52 @@ class OptimizationConfig(BaseModel):
         "maximize_profit", description="Optimization objective"
     )
     time_limit_seconds: int = Field(300, gt=0, le=3600, description="Solver timeout (max 60 minutes)")
-    mip_gap: float = Field(
-        0.01,
+    strategy: Optional[Literal["auto", "monolithic", "decomposed"]] = Field(
+        None,
+        description=(
+            "Requested solve strategy; None uses the service default. Explicit decomposed requests fail if "
+            "unsupported; auto may fall back to monolithic while retaining the selected SOC boundary policy."
+        ),
+    )
+    mip_gap: Optional[float] = Field(
+        None,
         ge=0.0,
         allow_inf_nan=False,
         description=(
-            "Relative MIP optimality gap the solver may stop at "
-            "(0.01 = accept solutions proven within 1% of the optimum; "
-            "0 = request a zero gap, proving full optimality unless "
-            "time_limit_seconds expires first). Any value >= 0 is accepted: "
-            "smaller gaps solve longer, larger gaps return sooner with a "
-            "looser guarantee. Services below 1.5.1 reject values above 0.1 at submission."
-            " It is a fraction, not a percent: pass 0.01 for 1%, not 1. There is no "
-            "upper bound, so a gap of 1 or more is accepted silently and effectively "
-            "drops the optimality guarantee (the first feasible plan is returned)."
+            "Relative optimality tolerance as a fraction (0.01 = 1%), finite and >= 0. "
+            "When supplied without abs_gap, only the relative criterion is requested. "
+            "If both tolerances are omitted, the service selects its default."
+        ),
+    )
+    abs_gap: Optional[float] = Field(
+        None,
+        ge=0.0,
+        allow_inf_nan=False,
+        description=(
+            "Absolute optimality tolerance in objective units, finite and >= 0. "
+            "When supplied alone, only the absolute criterion is requested; when both tolerances are supplied, "
+            "either criterion may establish optimality. None leaves this tolerance unspecified."
+        ),
+    )
+    soc_boundary_policy: Optional[Literal["preserve", "monthly_fixed"]] = Field(
+        None,
+        description=(
+            "Model policy: preserve retains the requested SOC constraints; monthly_fixed additionally fixes "
+            "SOC at calendar month ends and the terminal boundary to 0.5 times installed energy capacity. "
+            "The same policy applies on monolithic fallback. None uses the service-selected policy."
         ),
     )
     relax_binary_variables: bool = Field(
         True, description="Relax binary CHP variables to continuous (recommended for long horizons)"
     )
+
+    @field_validator("mip_gap", "abs_gap", mode="before")
+    @classmethod
+    def validate_gap_not_boolean(cls, value: object) -> object:
+        """Reject booleans before numeric coercion of tolerance values."""
+        if isinstance(value, bool):
+            raise ValueError("Optimality gaps must be numbers, not booleans")
+        return value
 
 
 class TimeSpanInvestment(TimeSpan):
@@ -174,12 +201,14 @@ class InvestmentPlanningRequest(BaseModel):
         """Convert to API format.
 
         Strips client-only fields (device ``investment`` blocks) and
-        rewrites sugar devices to their generic wire form.
+        rewrites sugar devices to their generic wire form. Unspecified
+        optimization options are omitted so the service can apply defaults.
 
         Returns:
             Dictionary ready for JSON serialization and API submission
         """
         data = self.model_dump()
+        data["optimization_config"] = self.optimization_config.model_dump(exclude_none=True)
         # Convert timespan to API format
         data["timespan"] = self.timespan.to_api_dict()
         for site in data["sites"]:
