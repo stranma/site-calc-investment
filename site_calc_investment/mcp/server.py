@@ -111,7 +111,8 @@ def add_device(
 def set_timespan(scenario_id: str, start_year: int, years: int = 1, intervals: Optional[int] = None) -> str:
     """Set the optimization time horizon.
 
-    Investment planning uses 1-hour resolution. One year = 8760 intervals.
+    Investment planning uses 1-hour resolution. Each fixed year = 365 elapsed days
+    = 8760 intervals; leap days are not added.
     Maximum ~11 years (100,000 intervals).
 
     Use `intervals` to set an exact interval count (e.g., from a downloaded CSV
@@ -120,7 +121,7 @@ def set_timespan(scenario_id: str, start_year: int, years: int = 1, intervals: O
 
     :param scenario_id: Target scenario.
     :param start_year: Start year (e.g., 2025).
-    :param years: Number of years (default: 1). Ignored when intervals is set.
+    :param years: Number of fixed 365-day years (default: 1). Ignored when intervals is set.
     :param intervals: Exact interval count (1-100,000). Overrides years * 8760.
     :returns: Confirmation with interval count.
     """
@@ -216,7 +217,8 @@ def submit_scenario(
     """Submit a draft scenario for optimization.
 
     The scenario is preserved after submission -- you can modify devices
-    and resubmit for "what-if" analysis.
+    and resubmit for "what-if" analysis. The service must advertise
+    planning_timezone in /health features; otherwise no job is submitted.
 
     Objectives: maximize_profit, minimize_cost, maximize_self_consumption.
 
@@ -290,7 +292,9 @@ def get_job_result(job_id: str, detail_level: str = "summary") -> dict[str, Any]
     Detail levels:
     - "summary": Aggregated totals (profit, solve time, per-device revenue/cost, investment metrics).
       Best for LLM context -- compact and informative.
-    - "monthly": Summary + monthly breakdown per device.
+    - "monthly": Summary + at most twelve 730-hour chunks per device (first
+      8760 hours only). These are approximate display buckets, not civil months;
+      use full schedules and their timezone for billing/SOC calendar comparisons.
     - "full": All data including hourly schedules. WARNING: can be very large (87K+ values).
 
     Every detail level carries objective bounds, absolute/relative gaps,

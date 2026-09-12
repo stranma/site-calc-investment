@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
+
+from site_calc_investment.models.common import IANATimezone
 
 
 class Job(BaseModel):
@@ -20,6 +22,7 @@ class Job(BaseModel):
     failed_at: Optional[datetime] = Field(None, description="Job failure timestamp")
     progress: Optional[int] = Field(None, ge=0, le=100, description="Progress percentage (optional)")
     message: Optional[str] = Field(None, description="Status message")
+    error_message: Optional[str] = Field(None, description="Service failure explanation")
     error: Optional[Dict] = Field(None, description="Error details if failed")
     estimated_completion_seconds: Optional[int] = Field(None, description="Estimated completion time")
     # Fields returned by server for completed/failed jobs
@@ -192,6 +195,24 @@ class Summary(BaseModel):
     )
 
 
+class TimeSpanMetadata(BaseModel):
+    """Planning instants and named calendar reported by a compatible service.
+
+    Legacy UTC is a declared compatibility default, never an inferred zone.
+    """
+
+    period_start: AwareDatetime
+    period_end: AwareDatetime
+    resolution: str
+    timezone: IANATimezone
+    timezone_source: Literal["explicit", "legacy_utc"]
+    timezone_rules_sha256: Optional[str] = Field(
+        None,
+        pattern=r"^[0-9a-fA-F]{64}$",
+        description="Server-reported SHA-256 of the planning zone's TZif rules; absent in older results",
+    )
+
+
 class InvestmentPlanningResponse(BaseModel):
     """Complete response for investment planning optimization.
 
@@ -206,6 +227,7 @@ class InvestmentPlanningResponse(BaseModel):
 
     job_id: str = Field(..., description="Job identifier")
     status: Literal["completed"] = "completed"
+    timespan: Optional[TimeSpanMetadata] = Field(None, description="Reported planning calendar; absent in old results")
     sites: Dict[str, SiteResult] = Field(..., description="Results keyed by site_id")
     summary: Summary = Field(..., description="Optimization summary and metrics")
     investment_metrics: Optional[InvestmentMetrics] = Field(

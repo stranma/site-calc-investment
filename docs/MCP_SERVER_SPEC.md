@@ -9,6 +9,11 @@
 
 ## 1. Overview
 
+The Python and MCP paths share the [timezone guidance and known limitations](TIMEZONE_GUIDE.md).
+Published 1.5.4 does not preserve the named zone through the deployed API.
+Client 1.5.5 sends the IANA name and requires server 1.5.3; operator-verified
+service support is required. A numeric offset alone is not a calendar.
+
 The MCP server exposes the Site-Calc investment planning API as tools that LLMs (e.g., Claude Desktop) can call interactively. Users describe what they want to optimize in natural language, and the LLM assembles scenarios, submits jobs, and retrieves results through these tools.
 
 ### 1.1 Architecture
@@ -165,10 +170,10 @@ Set the optimization time horizon.
 |-----------|------|----------|---------|-------------|
 | `scenario_id` | string | Yes | | Target scenario |
 | `start_year` | int | Yes | | Start year (e.g., 2025) |
-| `years` | int | No | 1 | Number of years (ignored when `intervals` is set) |
+| `years` | int | No | 1 | Number of fixed 365-day years (ignored when `intervals` is set) |
 | `intervals` | int | No | None | Exact interval count (1-100,000). Overrides `years * 8760`. |
 
-One year = 8,760 intervals. Maximum ~11 years (100,000 intervals).
+One fixed year = 365 elapsed days = 8,760 hourly intervals; leap days are not added. Maximum ~11 years (100,000 intervals).
 
 Use `intervals` when working with partial-year data (e.g., a CSV file with 864 rows).
 When `intervals` is provided, the `years` parameter is ignored for interval calculation.
@@ -281,7 +286,8 @@ For example, an absolute-only request with automatic strategy selection:
 Explicit `decomposed` fails for an unsupported model. `auto` may fall back to
 `monolithic`; inspect the result's used strategy and fallback reason.
 `preserve` keeps the requested SOC constraints. `monthly_fixed` adds exact
-month-end constraints in the planning timezone and at the terminal boundary
+month-end constraints in the service's effective planning timezone (currently UTC
+in the 2026-09-11 deployment; see [the limitation](TIMEZONE_GUIDE.md)) and at the terminal boundary
 (including a partial final month), each at half the installed energy capacity.
 For optimized capacity this means the selected installed capacity. This changes
 the model and applies on monolithic fallback too. These controls require a
@@ -314,8 +320,21 @@ Retrieve completed optimization results.
 
 Detail levels:
 - **summary** -- Aggregated totals (profit, cost, solve time, investment metrics). Compact.
-- **monthly** -- Summary + per-device monthly breakdowns.
+- **monthly** -- Summary + an approximate per-device breakdown into at most
+  twelve consecutive 730-hour chunks from the horizon start. This is a legacy
+  display convention, not calendar-month grouping.
 - **full** -- All data including hourly schedules. Can be very large.
+
+The `monthly` breakdown covers at most 8,760 hours, even for a longer result.
+A 743-hour Prague March produces chunks of 730 and 13 hours; an 87,600-hour
+result still shows only the first 8,760 hours in this breakdown. Summary totals
+and capacity-reservation totals cover the full result. Do not compare the
+approximate chunks to calendar billing periods or month-end SOC anchors. Use
+`full` schedules grouped in the request's planning timezone (Prague for MCP),
+and explicit billing-period boundaries for calendar analysis. The Python SDK
+exposes result timezone metadata; MCP result tools do not yet include that field.
+This timezone release does not change the
+legacy display aggregation.
 
 When any device carries a capacity reservation (a `capacity_reservation`
 property, battery `power_sizing`/`capacity_sizing`, or a
@@ -606,3 +625,28 @@ Test coverage includes:
 - 2 tests for `save_data_file` tool integration
 - 7 MCP protocol integration tests (via FastMCP Client)
 - 85+ tests for scenario assembly and job management tools
+
+
+## Planning timezone contract (client 1.5.5)
+
+The scenario builder uses `TimeSpanInvestment.for_fixed_years`; the existing
+`years * 8760` counts and explicit-interval override are unchanged. January 1
+starts retain `Europe/Prague`, now sent as `timespan.timezone` with the aware
+endpoints and resolution. Elapsed end arithmetic handles DST. Python callers
+can choose `for_calendar_years` for actual calendar years; MCP years remain fixed.
+
+The underlying Python response optionally retains typed `timespan` metadata (UTC aware endpoints,
+resolution, IANA timezone, `timezone_source` explicit or legacy_utc, and optional
+64-hex `timezone_rules_sha256` identifying the actual timezone rules); old results
+have no metadata. The rules hash is server-owned and is never added to requests.
+The Python `Job` retains service `error_message` and `error_code`, and
+`wait_for_completion` raises those details while preserving legacy dictionary
+errors. These Python fields are not yet added to the MCP result/status tool outputs. Submission now requires
+`planning_timezone` in `/health` features, cached by the Python client's existing
+version check. No extra health call is added. Missing, malformed, or unavailable
+capability blocks the POST; result/status reads remain available. Recreate the
+client (restart a persistent MCP session) after a service upgrade or health repair.
+There is no capability bypass. Upgrade both client and service; using client
+1.5.4 still has the historical limitations described above. Billing
+zone names may differ when period boundaries agree over the actual span; the
+compatible service validates this and returns HTTP 400 on disagreement.

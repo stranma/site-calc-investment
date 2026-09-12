@@ -2,11 +2,12 @@
 
 from datetime import datetime
 from typing import List
-from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
+import httpx
 import pytest
 
+from site_calc_investment import __version__
 from site_calc_investment.models import (
     CHP,
     Battery,
@@ -243,32 +244,23 @@ def mock_job_failed_response():
 
 
 @pytest.fixture
-def mock_health_response():
-    """Mock health endpoint response."""
-    mock = Mock()
-    mock.status_code = 200
-    mock.json.return_value = {
-        "status": "healthy",
-        "version": "1.0.0",
-        "api_version": "1.0",
-        "environment": "test",
-    }
-    return mock
+def mock_health_response() -> httpx.Response:
+    """Concrete health response from a server implementing the local contract."""
+    return httpx.Response(
+        200,
+        json={
+            "status": "healthy",
+            "api_version": ".".join(__version__.split(".")[:2]),
+            "features": ["planning_timezone"],
+        },
+    )
 
 
 @pytest.fixture(autouse=True)
-def skip_version_check(monkeypatch):
-    """Skip server version validation in tests.
+def mock_server_health(monkeypatch: pytest.MonkeyPatch, mock_health_response: httpx.Response) -> None:
+    """Mock health independently of job HTTP calls; exercise the real cache/parser.
 
-    This avoids needing to mock the /health endpoint in every test.
-    The version validation logic should be tested separately.
+    Capability tests override this fixture and use an actual MockTransport.
+    No client flags or feature sets are pre-populated by the fixture.
     """
-    from site_calc_investment.api.client import InvestmentClient
-
-    original_init = InvestmentClient.__init__
-
-    def patched_init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        self._version_checked = True
-
-    monkeypatch.setattr(InvestmentClient, "__init__", patched_init)
+    monkeypatch.setattr(httpx.Client, "get", lambda self, *args, **kwargs: mock_health_response)

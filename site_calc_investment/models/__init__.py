@@ -61,6 +61,7 @@ from site_calc_investment.models.responses import (
     ReservationPeriod,
     SiteResult,
     Summary,
+    TimeSpanMetadata,
 )
 
 __all__ = [
@@ -119,6 +120,7 @@ __all__ = [
     "Job",
     "DeviceSchedule",
     "ReservationPeriod",
+    "TimeSpanMetadata",
     "CapacityReservationResult",
     "SiteResult",
     "InvestmentMetrics",

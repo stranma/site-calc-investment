@@ -1,11 +1,14 @@
 # SYNC: This file may be synced between investment and operational clients
 """Common models shared across the investment client."""
 
+import warnings
 from datetime import date, datetime, timedelta
+from datetime import timezone as datetime_timezone
 from enum import Enum
-from zoneinfo import ZoneInfo
+from typing import Annotated, Any, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, TypeAdapter, computed_field, model_validator
 
 
 class Resolution(str, Enum):
@@ -25,137 +28,190 @@ class Resolution(str, Enum):
         return 96 if self == Resolution.MINUTES_15 else 24
 
 
+def validate_iana_zone(value: str) -> str:
+    """Validate a named timezone supported by the installed IANA database."""
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValueError(f"Invalid IANA timezone: {value}") from exc
+    return value
+
+
+IANATimezone = Annotated[str, AfterValidator(validate_iana_zone)]
+_DATETIME = TypeAdapter(datetime)
+
+
+def normalize_endpoint(value: Any, zone: ZoneInfo) -> datetime:
+    """Preserve an aware instant and validate its civil time and numeric offset."""
+    endpoint = _DATETIME.validate_python(value)
+    if endpoint.tzinfo is None or endpoint.utcoffset() is None:
+        raise ValueError("Timezone must be specified; endpoints must be aware")
+    instant = endpoint.astimezone(datetime_timezone.utc)
+    if isinstance(endpoint.tzinfo, ZoneInfo):
+        restored = instant.astimezone(endpoint.tzinfo)
+        if restored.replace(tzinfo=None) != endpoint.replace(tzinfo=None):
+            raise ValueError("Nonexistent civil time in IANA timezone")
+    localized = instant.astimezone(zone)
+    if endpoint.utcoffset() != timedelta(0) and endpoint.utcoffset() != localized.utcoffset():
+        raise ValueError("Endpoint offset does not agree with timezone at this instant")
+    return localized
+
+
 class TimeSpan(BaseModel):
-    """Time period for optimization.
+    """Planning period measured in elapsed intervals, with a named calendar zone.
 
-    Represents a time period with explicit interval count, allowing precise
-    control over array sizes and computed end time.
-
-    Examples:
-        Full day at 15-minute resolution:
-        >>> ts = TimeSpan.for_day(date(2025, 11, 6), Resolution.MINUTES_15)
-        >>> ts.intervals
-        96
-        >>> ts.duration
-        timedelta(days=1)
-
-        Custom 10-year planning:
-        >>> ts = TimeSpan(
-        ...     start=datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Prague")),
-        ...     intervals=87600,
-        ...     resolution=Resolution.HOUR_1
-        ... )
-        >>> ts.years
-        10.0
+    Supply an aware ``start`` and ``timezone`` (IANA name). Existing Python
+    constructors may omit timezone only when start carries a ZoneInfo key.
+    Numeric offsets alone cannot identify a calendar. UTC transport is accepted
+    with an explicit zone; other offsets must match that zone at the instant.
+    Nonexistent civil times are rejected; Python fold=0 and fold=1 select the
+    two occurrences of an ambiguous hour.
     """
 
-    start: datetime = Field(..., description="Start time (Europe/Prague timezone required)")
-    intervals: int = Field(..., ge=1, le=100_000, description="Number of time intervals")
+    start: datetime = Field(..., description="Aware start instant; ZoneInfo or explicit timezone required")
+    intervals: int = Field(..., ge=1, le=100_000, description="Number of elapsed time intervals")
     resolution: Resolution = Field(..., description="Time resolution (15min or 1h)")
+    timezone: Optional[IANATimezone] = Field(
+        default=None, description="IANA planning zone; inferred only from an aware Python start's ZoneInfo key"
+    )
 
-    @field_validator("start")
+    @model_validator(mode="before")
     @classmethod
-    def validate_timezone(cls, v: datetime) -> datetime:
-        """Ensure timezone is Europe/Prague."""
-        prague_tz = ZoneInfo("Europe/Prague")
-        if v.tzinfo is None:
-            raise ValueError("Timezone must be specified")
-        if v.tzinfo != prague_tz:
-            raise ValueError(f"Timezone must be Europe/Prague, got {v.tzinfo}")
-        return v
+    def normalize_timespan(cls, value: Any) -> Any:
+        """Normalize Python and wire inputs without guessing a zone from offsets."""
+        if not isinstance(value, dict):
+            return value
+        data = dict(value)
+        start = data.get("start", data.get("period_start"))
+        if start is None:
+            return data
+        parsed = _DATETIME.validate_python(start)
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("Timezone must be specified; endpoints must be aware")
+        name = data.get("timezone")
+        if name is None and isinstance(parsed.tzinfo, ZoneInfo):
+            name = parsed.tzinfo.key
+        if not isinstance(name, str):
+            raise ValueError("Explicit IANA timezone required for offset-only input")
+        zone = ZoneInfo(validate_iana_zone(name))
+        data["timezone"] = name
+        data["start"] = normalize_endpoint(parsed, zone)
+        if "period_end" in data:
+            end = normalize_endpoint(data["period_end"], zone)
+            resolution = Resolution(data.get("resolution", Resolution.HOUR_1))
+            seconds = (end.astimezone(datetime_timezone.utc) - parsed.astimezone(datetime_timezone.utc)).total_seconds()
+            count, remainder = divmod(seconds, resolution.minutes * 60)
+            if count < 1 or remainder:
+                raise ValueError("Endpoints must define positive, whole resolution intervals")
+            if "intervals" in data and data["intervals"] != count:
+                raise ValueError("Endpoint duration does not match intervals")
+            data["intervals"] = int(count)
+        return data
 
     @computed_field  # type: ignore[misc]
     @property
     def end(self) -> datetime:
-        """Computed end time based on start, intervals, and resolution."""
-        delta = timedelta(minutes=self.intervals * self.resolution.minutes)
-        return self.start + delta
+        """Exclusive end after elapsed UTC arithmetic, in the planning zone."""
+        return (self.start.astimezone(datetime_timezone.utc) + self.duration).astimezone(self.start.tzinfo)
 
     @computed_field  # type: ignore[misc]
     @property
     def duration(self) -> timedelta:
-        """Total duration of the time period."""
+        """Total elapsed duration."""
         return timedelta(minutes=self.intervals * self.resolution.minutes)
 
     @computed_field  # type: ignore[misc]
     @property
     def years(self) -> float:
-        """Duration in years (approximate, using 365.25 days/year)."""
+        """Approximate elapsed years, using 365.25 days per year."""
         return self.duration.total_seconds() / (365.25 * 24 * 3600)
 
     @classmethod
-    def for_day(cls, date: date, resolution: Resolution) -> "TimeSpan":
-        """Create timespan for a full day.
+    def for_day(cls, date: date, resolution: Resolution, *, timezone: str = "Europe/Prague") -> "TimeSpan":
+        """Cover a civil day, including 23/25-hour DST days in Prague.
 
-        Args:
-            date: The date to optimize
-            resolution: Time resolution (15min or 1h)
-
-        Returns:
-            TimeSpan covering the full day
-
-        Example:
-            >>> ts = TimeSpan.for_day(date(2025, 11, 6), Resolution.HOUR_1)
-            >>> ts.intervals
-            24
+        :param date: Local calendar date.
+        :param resolution: Elapsed interval resolution.
+        :param timezone: IANA planning zone; defaults to Europe/Prague.
         """
-        start = datetime.combine(date, datetime.min.time()).replace(tzinfo=ZoneInfo("Europe/Prague"))
-        return cls(start=start, intervals=resolution.intervals_per_day, resolution=resolution)
+        zone = ZoneInfo(validate_iana_zone(timezone))
+        start = datetime.combine(date, datetime.min.time(), tzinfo=zone)
+        end = datetime.combine(date + timedelta(days=1), datetime.min.time(), tzinfo=zone)
+        return cls.model_validate(dict(period_start=start, period_end=end, resolution=resolution, timezone=timezone))
 
     @classmethod
-    def for_hours(cls, start: datetime, hours: int, resolution: Resolution) -> "TimeSpan":
-        """Create timespan for N hours.
+    def for_hours(
+        cls, start: datetime, hours: int, resolution: Resolution, *, timezone: Optional[str] = None
+    ) -> "TimeSpan":
+        """Cover N elapsed hours; infer timezone only from an aware ZoneInfo start."""
+        return cls(start=start, intervals=hours * (60 // resolution.minutes), resolution=resolution, timezone=timezone)
 
-        Args:
-            start: Start datetime (must have Europe/Prague timezone)
-            hours: Number of hours
-            resolution: Time resolution
+    @classmethod
+    def for_fixed_years(
+        cls,
+        start_year: int,
+        years: int,
+        resolution: Resolution = Resolution.HOUR_1,
+        *,
+        timezone: str = "Europe/Prague",
+    ) -> "TimeSpan":
+        """Cover years * 365 elapsed days from local January 1.
 
-        Returns:
-            TimeSpan covering the specified hours
-
-        Example:
-            >>> start = datetime(2025, 11, 6, tzinfo=ZoneInfo("Europe/Prague"))
-            >>> ts = TimeSpan.for_hours(start, 48, Resolution.HOUR_1)
-            >>> ts.intervals
-            48
+        :param start_year: Year of the local January 1 start.
+        :param years: Number of fixed 365-day durations.
+        :param resolution: Elapsed interval resolution.
+        :param timezone: IANA planning zone.
         """
-        intervals = hours * (60 // resolution.minutes)
-        return cls(start=start, intervals=intervals, resolution=resolution)
+        start = datetime(start_year, 1, 1, tzinfo=ZoneInfo(validate_iana_zone(timezone)))
+        return cls.for_hours(start, years * 8760, resolution)
 
     @classmethod
     def for_years(cls, start_year: int, years: int, resolution: Resolution = Resolution.HOUR_1) -> "TimeSpan":
-        """Create timespan for N years.
+        """Deprecated fixed-year alias; preserves historical years * 8760 counts.
 
-        Args:
-            start_year: Starting year (e.g., 2025)
-            years: Number of years
-            resolution: Time resolution (defaults to 1h)
-
-        Returns:
-            TimeSpan covering the specified years
-
-        Example:
-            >>> ts = TimeSpan.for_years(2025, 10)
-            >>> ts.intervals
-            87600
-            >>> ts.years
-            10.0
+        At 1h this means 365 elapsed days per year. The legacy 15min behavior
+        also keeps years * 8760 intervals, only 91.25 days per year. Use
+        for_fixed_years for 365-day durations at either resolution, or
+        for_calendar_years for actual January-to-January calendar spans.
         """
+        warnings.warn(
+            "for_years is deprecated; use for_fixed_years (365 elapsed days) or for_calendar_years. "
+            "Legacy 15min counts remain years * 8760.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if resolution == Resolution.HOUR_1:
+            return cls.for_fixed_years(start_year, years, resolution)
         start = datetime(start_year, 1, 1, tzinfo=ZoneInfo("Europe/Prague"))
-        intervals = years * 8760  # 8760 hours per year
-        return cls(start=start, intervals=intervals, resolution=resolution)
+        return cls(start=start, intervals=years * 8760, resolution=resolution, timezone="Europe/Prague")
+
+    @classmethod
+    def for_calendar_years(
+        cls,
+        start_year: int,
+        years: int,
+        resolution: Resolution = Resolution.HOUR_1,
+        *,
+        timezone: str = "Europe/Prague",
+    ) -> "TimeSpan":
+        """Cover local January 1 to January 1 after N years, including leap days."""
+        zone = ZoneInfo(validate_iana_zone(timezone))
+        return cls.model_validate(
+            dict(
+                period_start=datetime(start_year, 1, 1, tzinfo=zone),
+                period_end=datetime(start_year + years, 1, 1, tzinfo=zone),
+                resolution=resolution,
+                timezone=timezone,
+            )
+        )
 
     def to_api_dict(self) -> dict:
-        """Convert to API format.
-
-        Returns:
-            Dictionary with period_start, period_end, resolution for API requests
-        """
+        """Return aware endpoints, resolution and the named planning timezone."""
         return {
             "period_start": self.start.isoformat(),
             "period_end": self.end.isoformat(),
             "resolution": self.resolution.value,
+            "timezone": self.timezone,
         }
 
 

@@ -10,6 +10,31 @@ pip install site-calc-investment
 
 ## Service compatibility
 
+**Client 1.5.5 requires server 1.5.3 with timezone capability support.** It adds named planning timezones, DST-safe
+elapsed arithmetic and civil-day helpers, explicit fixed/calendar-year helpers,
+optional result timezone metadata, and service failure messages. See the
+[timezone contract and historical limitations](docs/TIMEZONE_GUIDE.md), and follow
+the [migration guide](MIGRATION_GUIDE.md#timezone-and-calendar-migration).
+Submissions require `/health` to advertise
+`features: ["planning_timezone"]`; unsupported or unavailable health blocks the
+POST with an actionable error. Existing job/status reads remain available.
+The check reuses the existing cached health request; recreate the client after
+a service upgrade or health repair.
+
+After the service is upgraded and advertises the capability:
+
+```bash
+pip install "site-calc-investment==1.5.5"
+```
+
+### Legacy deployment (2026-09-11)
+
+**Historical calendar limitation:** client 1.5.4 and the service deployed 2026-09-11
+do not preserve the named Prague planning zone end to end. Local tariff months
+and monthly SOC boundaries can disagree; a ten-year explicit-decomposition job
+failed on this mismatch. Read [Planning timezones](docs/TIMEZONE_GUIDE.md), including
+the DST helper limitations, before relying on multi-month calendar behavior.
+
 Use **site-calc-investment 1.5.4** with the investment service release deployed on
 **2026-09-11**. That service reports **API 1.5** and **server 1.5.2** at `/health`.
 Earlier server 1.5.2 builds predate the strategy controls, so the version number

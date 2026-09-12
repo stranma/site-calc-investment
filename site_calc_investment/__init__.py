@@ -3,7 +3,7 @@
 Python client for long-term capacity planning and investment ROI analysis.
 """
 
-__version__ = "1.5.4"
+__version__ = "1.5.5"
 
 from site_calc_investment.analysis import (
     aggregate_annual,
@@ -66,6 +66,7 @@ from site_calc_investment.models import (
     Site,
     # Core models
     TimeSpan,
+    TimeSpanMetadata,
 )
 
 __all__ = [
@@ -109,6 +110,7 @@ __all__ = [
     "InvestmentPlanningResponse",
     "InvestmentMetrics",
     "ReservationPeriod",
+    "TimeSpanMetadata",
     "CapacityReservationResult",
     # Analysis
     "calculate_npv",

@@ -5,6 +5,29 @@ All notable changes to the Site-Calc Investment Client will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.5] - 2026-09-12
+
+### Fixed
+
+- Preserve an explicit IANA planning timezone through requests and result metadata.
+  Elapsed arithmetic now handles DST correctly; civil days contain 23/24/25 hours.
+- Surface stored service error messages and codes through polling.
+
+### Added
+
+- Explicit fixed-duration and civil-calendar year helpers, typed timezone metadata
+  and an optional server-owned rules signature.
+- A mandatory `planning_timezone` capability check before submission. This release
+  requires investment server 1.5.3 with that capability (API 1.5); deploy it first.
+- Independently reviewed timezone migration guidance, including preserving legacy
+  UTC calendars, DST endpoint/profile changes and existing reporting limitations.
+
+### Deprecated
+
+- `for_years` retains historical counts but warns; choose `for_fixed_years` or
+  `for_calendar_years` explicitly. Annual financial/degradation buckets and MCP's
+  approximate monthly display are unchanged.
+
 ## [1.5.4] - 2026-09-11
 
 ### Added
