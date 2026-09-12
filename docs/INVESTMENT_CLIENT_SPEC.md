@@ -80,6 +80,17 @@ client = InvestmentClient(
 
 ### 4.1 TimeSpan
 
+See [Planning timezones](TIMEZONE_GUIDE.md) for the authoritative client guidance
+on the client 1.5.5 named-zone contract, server 1.5.3 requirement and historical
+1.5.4 limitations. `timezone` is populated from an explicit IANA name or an aware Python
+`ZoneInfo.key`; JSON offsets require an explicit name. Wire `timespan` includes
+`timezone` alongside endpoint instants; model JSON reconstructs ZoneInfo and elapsed arithmetic is DST-safe.
+Submissions require `/health` features to include `planning_timezone`, cached by
+the existing version check. Missing/unavailable capability blocks POST with
+`ForbiddenFeatureError` (`planning_timezone_unsupported`); old-result/status
+reads remain available. Create a new client after service upgrades or health
+repairs. Deploy the compatible service before client upgrade.
+
 Time period for long-term optimization:
 
 ```python
@@ -94,20 +105,29 @@ ts = TimeSpan(
     resolution=Resolution.HOUR_1,
 )
 
-# Helper for full years
-ts = TimeSpan.for_years(start_year=2025, years=10, resolution=Resolution.HOUR_1)
+# Fixed 365-day years (for_years is a deprecated compatibility alias)
+ts = TimeSpan.for_fixed_years(start_year=2025, years=10, resolution=Resolution.HOUR_1)
 
-# Access computed properties. Note: intervals count fixed 8760-hour years,
-# so leap days are NOT included -- a "10-year" horizon is 3650 days and its
-# end lands slightly before the calendar decade boundary.
+# Fixed duration: intervening February 29 instants remain in the time axis.
+# Leap days do not extend the requested 3650 days, so the end falls before
+# the calendar decade boundary. No dates are removed or compressed.
 print(ts.duration)  # timedelta(days=3650)
-print(ts.years)  # 10.0
+print(ts.years)  # approximately 9.993 (uses 365.25 days/year)
 ```
 
 **Validation:**
-- `start` must use `Europe/Prague` timezone
+- Aware `start`; explicit IANA `timezone` or inference from Python `ZoneInfo.key`
+- UTC transport accepted with explicit zone; nonzero offsets must match that zone
+- Spring gaps rejected; explicit autumn folds accepted
+- `for_calendar_years` covers actual calendar years; `for_day` handles 23/25-hour days
 - `intervals` ≤ 100,000
-- **Only** `1h` resolution supported (15-min not allowed)
+- Investment requests use `TimeSpanInvestment`: only `1h` resolution is allowed.
+  The generic `TimeSpan` used above also supports `15min`; for example,
+  `TimeSpan.for_fixed_years(2028, 1, Resolution.MINUTES_15)` has 35,040 intervals.
+
+Choosing `for_calendar_years` changes the horizon and required profile length,
+not the existing financial/degradation year conventions. See
+[timezone migration](../MIGRATION_GUIDE.md#timezone-and-calendar-migration).
 
 ### 4.2 Device Models
 
@@ -648,6 +668,16 @@ payments and grid capacity tariffs). NPV, IRR, and payback are computed
 client-side from these arrays with `calculate_investment_metrics`
 (Section 6.1), which also folds in the devices' `investment` blocks.
 
+These arrays use fixed 8,760-hour model-year buckets, not civil-year boundaries.
+A Prague 2025-to-2035 civil horizon has 87,648 hours: ten full buckets plus a
+48-hour eleventh bucket. Financial helpers consume the arrays supplied; they do
+not infer or regroup civil years from the planning timezone. Yearly degradation
+also follows fixed model years and needs enough entries for the actual horizon.
+Use fixed-duration horizons when that convention matches the intended analysis,
+or deliberately aggregate complete schedules into the desired financial periods
+before using financial helpers. Changing the timespan helper alone does not make
+financial or degradation reporting calendar-aware.
+
 ### 7.2 Device Schedule (87,600 intervals)
 
 ```python
@@ -656,7 +686,7 @@ client-side from these arrays with `calculate_investment_metrics`
         "flows": {
             "electricity": [2.0, -1.5, 0.5, ...]  # 87,600 hourly values (MW)
         },
-        "soc": [0.5, 0.48, 0.47, ...],  # 87,600 values (0-1)
+        "soc": [0.5, 0.48, 0.47, ...],  # 87,600 entering-state values (MWh)
         # No ancillary_reservations field
     },
     "CHP1": {
@@ -834,9 +864,12 @@ in the `investment` block.
 
 ### 10.1 TimeSpan Validation
 
+These are local construction checks, not an end-to-end calendar guarantee.
+See [timezone validation and compatibility](TIMEZONE_GUIDE.md).
+
 - Maximum 100,000 intervals
 - **Only** 1-hour resolution (15-min rejected)
-- Timezone must be `Europe/Prague`
+- Valid IANA planning timezone; offset-only input requires explicit `timezone`
 
 ### 10.2 Forbidden Features
 
@@ -893,8 +926,9 @@ fall back to `monolithic`; the result reports `requested_strategy`,
 `used_strategy`, and `fallback_reason` when available.
 
 `preserve` retains the requested SOC constraints. `monthly_fixed` adds exact
-storage energy constraints at calendar month-end boundaries in the planning
-timezone and at the terminal horizon boundary (including a partial final
+storage energy constraints at calendar month-end boundaries in the service's
+effective planning timezone (currently UTC in the 2026-09-11 deployment; see
+[the known limitation](TIMEZONE_GUIDE.md)) and at the terminal horizon boundary (including a partial final
 month): SOC energy equals `0.5 * installed energy capacity`. For optimized
 capacity, this means the installed capacity selected in the result, not a
 capacity upper limit. This is a model policy that can change the feasible
@@ -1065,3 +1099,16 @@ client = InvestmentClient(api_key="inv_...")
 - **Documentation**: https://docs.site-calc.example.com/investment-client
 - **Issues**: https://github.com/site-calc/investment-client/issues
 - **Examples**: https://github.com/site-calc/investment-client/tree/main/examples
+
+
+### Result timezone and failure metadata
+
+`InvestmentPlanningResponse.timespan` is optional `TimeSpanMetadata`: aware
+`period_start`, aware `period_end` (service UTC ISO timestamps), `resolution` string,
+IANA `timezone`, and `timezone_source` (`explicit` or `legacy_utc`). Optional
+`timezone_rules_sha256` is a 64-hex hash of the actual timezone rules reported by
+the server for reproducibility; absent hashes are `None`. It is response-only.
+Old results without timespan metadata have `None`. `Job.error_message` and `error_code` preserve service failures;
+`wait_for_completion` retains legacy dictionary error details and uses the new
+string when a dictionary message is absent. See [the timezone contract](TIMEZONE_GUIDE.md)
+for compatibility and the historical client 1.5.4 limitations.

@@ -37,6 +37,7 @@ ENV/
 .pytest_cache/
 .coverage
 coverage.json
+.timezone-release/
 htmlcov/
 .tox/
 

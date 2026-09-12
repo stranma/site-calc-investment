@@ -31,6 +31,8 @@ class InvestmentClient:
     - Maximum 100,000 intervals (~11 years)
     - Does NOT support ancillary services
     - Only has access to /device-planning endpoint
+    - Requires /health features to advertise planning_timezone before submission;
+      status and result reads remain available without that capability
 
     Example:
         >>> client = InvestmentClient(
@@ -79,6 +81,7 @@ class InvestmentClient:
             timeout=timeout,
         )
         self._version_checked = False
+        self._supported_features: frozenset[str] = frozenset()
 
     def __enter__(self) -> "InvestmentClient":
         """Context manager entry."""
@@ -98,10 +101,12 @@ class InvestmentClient:
         self._client.close()
 
     def _validate_server_version(self) -> None:
-        """Check server API version compatibility and warn if mismatched.
+        """Cache server capabilities and warn about API version mismatches.
 
         Compares client MAJOR.MINOR with server api_version.
-        Only runs once per client instance.
+        Only runs once per client instance, using the existing health request.
+        Missing, malformed or unavailable health data grants no capabilities.
+        Create a new client to recheck after server upgrades or health failures.
         """
         if self._version_checked:
             return
@@ -113,6 +118,11 @@ class InvestmentClient:
             response = self._client.get("/health")
             if response.status_code == 200:
                 health = response.json()
+                if not isinstance(health, dict):
+                    return
+                features = health.get("features")
+                if isinstance(features, list) and all(isinstance(feature, str) for feature in features):
+                    self._supported_features = frozenset(features)
                 server_api_version = health.get("api_version")
                 if server_api_version and client_api_version != server_api_version:
                     warnings.warn(
@@ -255,7 +265,8 @@ class InvestmentClient:
 
         Raises:
             ValidationError: If request is invalid
-            ForbiddenFeatureError: If using forbidden features (ANS)
+            ForbiddenFeatureError: If using forbidden features (ANS), or the server
+                does not advertise planning_timezone in its health features
             LimitExceededError: If exceeding client limits
             AuthenticationError: If API key is invalid
 
@@ -269,6 +280,16 @@ class InvestmentClient:
             >>> print(f"Job ID: {job.job_id}")
         """
         payload = request.model_dump_for_api()
+        if "timezone" in payload.get("timespan", {}):
+            self._validate_server_version()
+            if "planning_timezone" not in self._supported_features:
+                raise ForbiddenFeatureError(
+                    "No job submitted: the server must advertise 'planning_timezone' in GET /health features "
+                    "before accepting named-zone planning requests. Upgrade to a compatible service and ensure "
+                    "/health is reachable and returns that feature. Create a new InvestmentClient after fixing "
+                    "the service or connection to refresh the cached capability check.",
+                    code="planning_timezone_unsupported",
+                )
 
         response = self._request_with_retry(
             "POST",
@@ -425,8 +446,8 @@ class InvestmentClient:
             if job.status == "completed":
                 return self.get_job_result(job_id)
             elif job.status == "failed":
-                error_msg: str = str(job.error.get("message", "Unknown error")) if job.error else "Unknown error"
-                error_code = job.error.get("code") if job.error else None
+                error_msg = str((job.error or {}).get("message") or job.error_message or "Unknown error")
+                error_code = (job.error or {}).get("code") or job.error_code
                 error_details = job.error.get("details") if job.error else None
                 raise OptimizationError(error_msg, error_code, error_details)
             elif job.status == "cancelled":

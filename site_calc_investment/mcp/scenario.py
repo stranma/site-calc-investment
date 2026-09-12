@@ -406,7 +406,7 @@ class ScenarioStore:
         )
 
     def set_timespan(self, scenario_id: str, start_year: int, years: int = 1, intervals: Optional[int] = None) -> str:
-        """Set the optimization time horizon.
+        """Set the time horizon using fixed 365-day years (8760 hourly intervals).
 
         :param intervals: Explicit interval count (1-100,000). Overrides years * 8760 when provided.
         :returns: Summary string with interval count.
@@ -556,12 +556,13 @@ class ScenarioStore:
                 start=start,
                 intervals=ts_config.intervals,
                 resolution=Resolution.HOUR_1,
+                timezone="Europe/Prague",
             )
             expected_length = ts_config.intervals
         else:
             timespan = cast(
                 TimeSpanInvestment,
-                TimeSpanInvestment.for_years(
+                TimeSpanInvestment.for_fixed_years(
                     start_year=ts_config.start_year,
                     years=ts_config.years,
                     resolution=Resolution.HOUR_1,

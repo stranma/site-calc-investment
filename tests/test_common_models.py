@@ -106,12 +106,12 @@ class TestTimeSpan:
         with pytest.raises(ValueError, match="Timezone must be specified"):
             TimeSpan(start=start_without_tz, intervals=24, resolution=Resolution.HOUR_1)
 
-    def test_timespan_requires_prague_timezone(self):
-        """Test that Europe/Prague timezone is required."""
+    def test_timespan_accepts_named_utc_timezone(self):
+        """Named UTC is a valid planning calendar."""
         start_wrong_tz = datetime(2025, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC"))
 
-        with pytest.raises(ValueError, match="Timezone must be Europe/Prague"):
-            TimeSpan(start=start_wrong_tz, intervals=24, resolution=Resolution.HOUR_1)
+        ts = TimeSpan(start=start_wrong_tz, intervals=24, resolution=Resolution.HOUR_1)
+        assert ts.timezone == "UTC"
 
     def test_timespan_minimum_intervals(self, prague_tz):
         """Test minimum intervals validation."""
