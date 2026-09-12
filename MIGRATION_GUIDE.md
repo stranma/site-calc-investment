@@ -38,9 +38,7 @@ assert local.timezone == "Europe/Prague"
 
 # Preserve the old UTC calendar AND the same physical interval instants.
 # Convert the instant; do not relabel it with replace(tzinfo=...).
-legacy_calendar = TimeSpanInvestment(
-    start=start.astimezone(timezone.utc), intervals=4, timezone="UTC"
-)
+legacy_calendar = TimeSpanInvestment(start=start.astimezone(timezone.utc), intervals=4, timezone="UTC")
 assert legacy_calendar.start == local.start.astimezone(timezone.utc)
 # UTC months contain two January hours and two February hours here.
 ```
@@ -67,12 +65,14 @@ with the actual elapsed interval count:
 ```python
 old_start = datetime(2026, 3, 29, tzinfo=ZoneInfo("Europe/Prague"))
 old_end = datetime(2026, 3, 30, tzinfo=ZoneInfo("Europe/Prague"))
-same_endpoints = TimeSpanInvestment.model_validate({
-    "period_start": old_start.astimezone(timezone.utc),
-    "period_end": old_end.astimezone(timezone.utc),
-    "resolution": "1h",
-    "timezone": "UTC",
-})
+same_endpoints = TimeSpanInvestment.model_validate(
+    {
+        "period_start": old_start.astimezone(timezone.utc),
+        "period_end": old_end.astimezone(timezone.utc),
+        "resolution": "1h",
+        "timezone": "UTC",
+    }
+)
 assert same_endpoints.intervals == 23
 assert same_endpoints.end == old_end.astimezone(timezone.utc)
 ```

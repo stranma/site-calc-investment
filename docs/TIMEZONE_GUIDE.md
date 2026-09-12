@@ -24,9 +24,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from site_calc_investment.models import Resolution, TimeSpanInvestment
 
-span = TimeSpanInvestment(
-    start=datetime(2026, 3, 29, tzinfo=ZoneInfo("Europe/Prague")), intervals=23
-)
+span = TimeSpanInvestment(start=datetime(2026, 3, 29, tzinfo=ZoneInfo("Europe/Prague")), intervals=23)
 assert span.timezone == "Europe/Prague"
 assert span.end == datetime(2026, 3, 30, tzinfo=ZoneInfo("Europe/Prague"))
 restored = TimeSpanInvestment.model_validate_json(span.model_dump_json())
