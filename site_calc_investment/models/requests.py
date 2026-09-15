@@ -2,7 +2,7 @@
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from site_calc_investment.models.common import Resolution, TimeSpan
 from site_calc_investment.models.devices import Device, device_to_wire, overflow_device_name
@@ -104,8 +104,8 @@ class OptimizationConfig(BaseModel):
         allow_inf_nan=False,
         description=(
             "Relative optimality tolerance as a fraction (0.01 = 1%), finite and >= 0. "
-            "When supplied without abs_gap, only the relative criterion is requested. "
-            "If both tolerances are omitted, the service selects its default."
+            "Either supplied tolerance may establish optimality. Decomposed, auto and default strategies "
+            "also use an absolute tolerance, defaulting to 100 EUR."
         ),
     )
     abs_gap: Optional[float] = Field(
@@ -113,9 +113,10 @@ class OptimizationConfig(BaseModel):
         ge=0.0,
         allow_inf_nan=False,
         description=(
-            "Absolute optimality tolerance in objective units, finite and >= 0. "
+            "Absolute optimality tolerance in EUR. Decomposed, auto and default strategies use 100 EUR "
+            "when omitted or None, and require at least 1 EUR. Explicit monolithic allows finite values >= 0. "
             "When supplied alone, only the absolute criterion is requested; when both tolerances are supplied, "
-            "either criterion may establish optimality. None leaves this tolerance unspecified."
+            "either criterion may establish optimality. For monolithic, None leaves this tolerance unspecified."
         ),
     )
     soc_boundary_policy: Optional[Literal["preserve", "monthly_fixed"]] = Field(
@@ -137,6 +138,19 @@ class OptimizationConfig(BaseModel):
         if isinstance(value, bool):
             raise ValueError("Optimality gaps must be numbers, not booleans")
         return value
+
+    @model_validator(mode="after")
+    def validate_decomposition_gap(self) -> "OptimizationConfig":
+        """Keep any strategy that can select decomposition above numerical noise."""
+        if self.strategy != "monolithic":
+            if self.abs_gap is None:
+                # Keep this a default, not an explicit user setting. A later
+                # strategy change must resolve its own default at submission.
+                object.__setattr__(self, "abs_gap", 100.0)
+                self.model_fields_set.discard("abs_gap")
+            elif self.abs_gap < 1.0:
+                raise ValueError("abs_gap must be at least 1 EUR for decomposed, auto or default strategy")
+        return self
 
 
 class TimeSpanInvestment(TimeSpan):
@@ -208,7 +222,9 @@ class InvestmentPlanningRequest(BaseModel):
             Dictionary ready for JSON serialization and API submission
         """
         data = self.model_dump()
-        data["optimization_config"] = self.optimization_config.model_dump(exclude_none=True)
+        # Models are mutable: validate the final settings again before sending.
+        config = OptimizationConfig.model_validate(self.optimization_config.model_dump(exclude_unset=True))
+        data["optimization_config"] = config.model_dump(exclude_none=True)
         # Convert timespan to API format
         data["timespan"] = self.timespan.to_api_dict()
         for site in data["sites"]:

@@ -1,5 +1,17 @@
 # Migration Guide
 
+## Absolute-gap defaults in 1.5.5
+
+For `decomposed`, `auto`, or an omitted strategy, omitted/null `abs_gap` now
+becomes **100 EUR**. Explicit values below **1 EUR** raise a validation error
+before submission. Change existing zero/sub-euro requests to `abs_gap=1` or
+omit the option to use 100 EUR. Explicit monolithic requests keep their existing
+optional, nonnegative tolerances.
+
+Python's `mip_gap=None` requests only the absolute criterion. MCP still defaults
+to `mip_gap=0.01`; pass `mip_gap=null` for absolute-only use. When both are enabled,
+satisfying either can establish optimality.
+
 ## Timezone and calendar migration
 
 Upgrade the service before the client. The service must advertise

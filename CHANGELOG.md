@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Decomposed, auto and default strategies use a 100 EUR absolute gap when
+  omitted or null, and reject values below 1 EUR before submission. This avoids
+  excessive solve times spent closing numerical rounding gaps. Explicit
+  monolithic requests retain optional nonnegative tolerances. Python and MCP
+  use the same validation, including a check of the final serialized settings.
 - Preserve an explicit IANA planning timezone through requests and result metadata.
   Elapsed arithmetic now handles DST correctly; civil days contain 23/24/25 hours.
 - Surface stored service error messages and codes through polling.

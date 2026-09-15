@@ -535,7 +535,8 @@ class ScenarioStore:
 
         Omitted mip_gap retains the MCP helper's explicit 1% request. Pass
         None to omit it, including when requesting only an absolute tolerance.
-        New controls remain unspecified unless selected by the caller.
+        Decomposed, auto and default strategies use abs_gap=100 EUR when
+        omitted or None and reject absolute tolerances below 1 EUR.
 
         :raises ValueError: If scenario is not ready (missing devices or timespan).
         """

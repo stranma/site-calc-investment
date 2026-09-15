@@ -78,18 +78,19 @@ def parsed(result: Any) -> dict:
 @pytest.mark.parametrize(
     "options,expected",
     [
-        ({}, {"mip_gap": 0.01}),
-        ({"mip_gap": 0.01}, {"mip_gap": 0.01}),
+        ({}, {"mip_gap": 0.01, "abs_gap": 100.0}),
+        ({"mip_gap": 0.01}, {"mip_gap": 0.01, "abs_gap": 100.0}),
         ({"abs_gap": 25.0}, {"mip_gap": 0.01, "abs_gap": 25.0}),
-        ({"mip_gap": None}, {}),
-        ({"strategy": None, "abs_gap": None, "soc_boundary_policy": None, "mip_gap": None}, {}),
+        ({"mip_gap": None}, {"abs_gap": 100.0}),
+        ({"strategy": None, "abs_gap": None, "soc_boundary_policy": None, "mip_gap": None}, {"abs_gap": 100.0}),
+        ({"strategy": "decomposed"}, {"strategy": "decomposed", "mip_gap": 0.01, "abs_gap": 100.0}),
         (
             {"strategy": "auto", "soc_boundary_policy": "monthly_fixed"},
-            {"strategy": "auto", "soc_boundary_policy": "monthly_fixed", "mip_gap": 0.01},
+            {"strategy": "auto", "soc_boundary_policy": "monthly_fixed", "mip_gap": 0.01, "abs_gap": 100.0},
         ),
         (
-            {"strategy": "decomposed", "soc_boundary_policy": "monthly_fixed", "mip_gap": None, "abs_gap": 0.0},
-            {"strategy": "decomposed", "soc_boundary_policy": "monthly_fixed", "abs_gap": 0.0},
+            {"strategy": "decomposed", "soc_boundary_policy": "monthly_fixed", "mip_gap": None, "abs_gap": 1.0},
+            {"strategy": "decomposed", "soc_boundary_policy": "monthly_fixed", "abs_gap": 1.0},
         ),
         (
             {"strategy": "monolithic", "soc_boundary_policy": "preserve", "mip_gap": 0.0, "abs_gap": 25.0},
@@ -129,7 +130,17 @@ async def test_submission_schema_keeps_new_controls_optional() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("options", [{"strategy": "invalid"}, {"soc_boundary_policy": "invalid"}, {"abs_gap": -1}])
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"strategy": "invalid"},
+        {"soc_boundary_policy": "invalid"},
+        {"abs_gap": -1},
+        {"strategy": "decomposed", "abs_gap": 0},
+        {"strategy": "auto", "abs_gap": 0.5},
+        {"abs_gap": 0.99},
+    ],
+)
 async def test_invalid_controls_do_not_submit(ready_scenario: str, wire: Wire, options: dict) -> None:
     async with Client(server.mcp) as client:
         # Newer MCP releases report argument validation at the protocol layer.

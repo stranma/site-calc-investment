@@ -130,9 +130,11 @@ if result.summary.is_optimal is False:  # "is False", not "not ...": None means 
 ```
 
 Optional `OptimizationConfig` fields select `strategy`, absolute or relative
-tolerance (`abs_gap` / `mip_gap`), and `soc_boundary_policy`. Unspecified values
-use service defaults; pass `mip_gap=0.01` explicitly to keep the previous 1%
-relative request. The `monthly_fixed` policy fixes month-end and terminal SOC
+tolerance (`abs_gap` / `mip_gap`), and `soc_boundary_policy`. For `decomposed`,
+`auto`, or an omitted strategy, `abs_gap` defaults to **100 EUR** and must be
+**at least 1 EUR**. Explicit `monolithic` keeps optional nonnegative tolerances.
+Pass `mip_gap=0.01` to also request a 1% relative tolerance; satisfying either
+criterion can establish optimality. The `monthly_fixed` policy fixes month-end and terminal SOC
 to half the installed energy capacity, including on monolithic fallback.
 See [strategy, bounds, and model-policy behavior](docs/INVESTMENT_CLIENT_SPEC.md#1111-strategy-tolerances-and-soc-boundary-policy)
 before choosing a policy or interpreting nullable result bounds.

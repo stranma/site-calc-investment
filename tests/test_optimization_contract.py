@@ -30,6 +30,55 @@ def planning_request() -> InvestmentPlanningRequest:
     )
 
 
+@pytest.mark.parametrize("strategy", [None, "auto", "decomposed"])
+@pytest.mark.parametrize("mip_gap", [None, 0.0, 0.01])
+def test_decomposition_defaults_to_100_eur(strategy: str | None, mip_gap: float | None) -> None:
+    for options in ({}, {"abs_gap": None}):
+        config = OptimizationConfig(strategy=strategy, mip_gap=mip_gap, **options)
+        assert config.abs_gap == 100.0
+        assert config.mip_gap == mip_gap
+
+
+@pytest.mark.parametrize("strategy", [None, "auto", "decomposed"])
+@pytest.mark.parametrize("gap", [0.0, 0.5, 0.999999])
+def test_decomposition_rejects_sub_euro_gap(strategy: str | None, gap: float) -> None:
+    with pytest.raises(ValidationError, match="at least 1 EUR"):
+        OptimizationConfig(strategy=strategy, abs_gap=gap)
+
+
+@pytest.mark.parametrize("strategy", [None, "auto", "decomposed"])
+@pytest.mark.parametrize("gap", [1.0, 100.0, 500.0])
+def test_decomposition_preserves_allowed_gap(strategy: str | None, gap: float) -> None:
+    assert OptimizationConfig(strategy=strategy, abs_gap=gap).abs_gap == gap
+
+
+def test_mutated_gap_is_revalidated_before_submission(planning_request: InvestmentPlanningRequest) -> None:
+    planning_request.optimization_config.abs_gap = 0.0
+    with pytest.raises(ValidationError, match="at least 1 EUR"):
+        planning_request.model_dump_for_api()
+
+
+@pytest.mark.parametrize("options", [{}, {"abs_gap": None}])
+def test_mutating_to_monolithic_does_not_keep_decomposition_default(
+    planning_request: InvestmentPlanningRequest, options: dict
+) -> None:
+    planning_request.optimization_config = OptimizationConfig(**options)
+    planning_request.optimization_config.strategy = "monolithic"
+    assert "abs_gap" not in planning_request.model_dump_for_api()["optimization_config"]
+
+
+@pytest.mark.parametrize("set_after_creation", [False, True])
+def test_mutating_to_monolithic_preserves_explicit_gap(
+    planning_request: InvestmentPlanningRequest, set_after_creation: bool
+) -> None:
+    config = OptimizationConfig() if set_after_creation else OptimizationConfig(abs_gap=100.0)
+    if set_after_creation:
+        config.abs_gap = 100.0
+    config.strategy = "monolithic"
+    planning_request.optimization_config = config
+    assert planning_request.model_dump_for_api()["optimization_config"]["abs_gap"] == 100.0
+
+
 @pytest.mark.parametrize("field", ["mip_gap", "abs_gap"])
 @pytest.mark.parametrize("value", [True, False, -0.01, float("nan"), float("inf"), float("-inf")])
 def test_reject_invalid_tolerances(field: str, value: object) -> None:
@@ -40,7 +89,7 @@ def test_reject_invalid_tolerances(field: str, value: object) -> None:
 @pytest.mark.parametrize("field", ["mip_gap", "abs_gap"])
 @pytest.mark.parametrize("value", [None, 0.0, 2, 1250.5])
 def test_accept_optional_nonnegative_tolerances(field: str, value: float | None) -> None:
-    assert getattr(OptimizationConfig(**{field: value}), field) == value
+    assert getattr(OptimizationConfig(strategy="monolithic", **{field: value}), field) == value
 
 
 @pytest.mark.parametrize("strategy", [None, "auto", "monolithic", "decomposed"])
@@ -61,10 +110,12 @@ def test_reject_unknown_strategy_or_policy(field: str, value: object) -> None:
 @pytest.mark.parametrize(
     "options,expected",
     [
-        ({}, {}),
-        ({"strategy": None, "mip_gap": None, "abs_gap": None, "soc_boundary_policy": None}, {}),
-        ({"mip_gap": 0.01}, {"mip_gap": 0.01}),
-        ({"abs_gap": 0.0}, {"abs_gap": 0.0}),
+        ({}, {"abs_gap": 100.0}),
+        ({"strategy": None, "mip_gap": None, "abs_gap": None, "soc_boundary_policy": None}, {"abs_gap": 100.0}),
+        ({"mip_gap": 0.01}, {"mip_gap": 0.01, "abs_gap": 100.0}),
+        ({"strategy": "decomposed"}, {"strategy": "decomposed", "abs_gap": 100.0}),
+        ({"strategy": "auto"}, {"strategy": "auto", "abs_gap": 100.0}),
+        ({"strategy": "monolithic", "abs_gap": 0.0}, {"strategy": "monolithic", "abs_gap": 0.0}),
         ({"mip_gap": 0.0, "abs_gap": 25.0}, {"mip_gap": 0.0, "abs_gap": 25.0}),
         (
             {"strategy": "decomposed", "soc_boundary_policy": "monthly_fixed", "abs_gap": 25.0},
