@@ -911,13 +911,14 @@ reason, even if the bounds already satisfy an enabled tolerance.
 ### 11.1.1 Strategy, tolerances, and SOC boundary policy
 
 `OptimizationConfig` accepts the following optional controls. `None` values
-are omitted from the API payload. They require a service that implements
+are omitted from the API payload except for the absolute-gap default described
+below. They require a service that implements
 this contract; the client only validates and transmits the request.
 
 | Option | Meaning |
 | --- | --- |
 | `strategy` | `auto`, `monolithic`, or `decomposed`; omitted means service default. |
-| `abs_gap` | Finite, nonnegative absolute optimality tolerance in objective units. |
+| `abs_gap` | Absolute tolerance in EUR. Decomposed/auto/default: defaults to 100, minimum 1. Explicit monolithic: optional and nonnegative. |
 | `mip_gap` | Finite, nonnegative relative tolerance as a fraction; `0.01` means 1%. |
 | `soc_boundary_policy` | `preserve` or `monthly_fixed`; omitted means service-selected policy. |
 
@@ -937,14 +938,17 @@ including monolithic fallback. The result's `soc_boundary_policy` identifies
 the model to which its bounds apply; bounds for `monthly_fixed` do not certify
 the corresponding `preserve` model.
 
-Supplying only `abs_gap` requests only the absolute criterion; supplying only
-`mip_gap` requests only the relative criterion. If both are supplied, either
-criterion may establish optimality. A zero tolerance requests a zero gap but
-does not guarantee completion before a limit. If neither is supplied, the
-service selects its default tolerance; no fixed absolute default is promised
-by this client. `OptimizationConfig().mip_gap` now defaults to `None` rather
-than `0.01`. Pass `mip_gap=0.01` explicitly to retain the previous request.
-Helpers that explicitly supply a relative gap continue to request it.
+For `decomposed`, `auto`, or an omitted strategy, omitted/null `abs_gap` becomes
+100 EUR, even when `mip_gap` is supplied. Values below 1 EUR are rejected before
+submission rather than rounded up. This prevents tiny numerical differences
+from consuming the full solve budget. Explicit `monolithic` retains optional,
+nonnegative absolute tolerances and can request a relative-only criterion.
+
+Supplying only `abs_gap` requests only the absolute criterion. If both criteria
+are supplied, satisfying either may establish optimality; 100 EUR is not a
+guaranteed final bound when an independently looser relative criterion is also
+enabled. Python `mip_gap` defaults to `None`; pass `mip_gap=0.01` to request 1%.
+MCP retains its explicit 1% default; pass `mip_gap=null` for absolute-only use.
 
 `summary.objective_lower_bound` and `objective_upper_bound` bracket the optimum
 of the selected model, in the same objective units and including objective

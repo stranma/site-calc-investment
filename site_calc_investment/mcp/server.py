@@ -233,9 +233,12 @@ def submit_scenario(
     :param strategy: auto, monolithic or decomposed; null uses the service
         default. Explicit decomposed fails for unsupported models; auto may
         fall back to monolithic while keeping the selected SOC policy.
-    :param abs_gap: Finite nonnegative absolute tolerance in objective units.
+    :param abs_gap: Absolute tolerance in EUR. Decomposed, auto and default
+        strategies use 100 when omitted/null and reject values below 1.
+        Explicit monolithic permits finite nonnegative values.
         Use mip_gap=null for absolute-only tolerance. If both are supplied,
-        either criterion may certify optimality; both null use service defaults.
+        either criterion may certify optimality. Both null use service defaults
+        only for explicit monolithic strategy.
     :param soc_boundary_policy: preserve retains requested SOC constraints;
         monthly_fixed additionally fixes calendar month-end and terminal SOC
         to half the installed energy capacity, including on monolithic fallback.

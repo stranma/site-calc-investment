@@ -257,7 +257,7 @@ Submit a draft scenario for server-side optimization.
 | `solver_timeout` | int | No | 300 | Time limit in seconds (max 3600) |
 | `mip_gap` | float or null | No | 0.01 | Relative tolerance as a fraction; `0.01` = 1%; null omits this criterion |
 | `strategy` | string or null | No | null | `auto`, `monolithic`, or `decomposed`; null uses the service default |
-| `abs_gap` | float or null | No | null | Finite nonnegative absolute tolerance in objective units |
+| `abs_gap` | float or null | No | null | Decomposed/auto/default: null resolves to 100 EUR, minimum 1 EUR. Explicit monolithic: optional nonnegative tolerance |
 | `soc_boundary_policy` | string or null | No | null | `preserve` or `monthly_fixed`; null uses the service-selected policy |
 
 Objectives: `maximize_profit`, `minimize_cost`, `maximize_self_consumption`.
@@ -265,8 +265,10 @@ Objectives: `maximize_profit`, `minimize_cost`, `maximize_self_consumption`.
 The MCP helper keeps its legacy explicit **1% relative request** when `mip_gap`
 is omitted. This also applies when `abs_gap` is supplied: both criteria are then
 enabled, and satisfying either can establish optimality. For absolute-only
-tolerance, pass `mip_gap: null`; for service-default tolerances, pass both gaps
-as null. New controls left null are omitted from the HTTP request. Relative
+tolerance, pass `mip_gap: null`. Decomposed, auto and default strategies resolve
+omitted/null `abs_gap` to 100 EUR and reject values below 1 EUR. Both gaps null
+use service defaults only for explicit monolithic strategy. Other controls
+left null are omitted from the HTTP request. Relative
 gaps must be finite; the helper retains its legacy clamp of finite negative
 `mip_gap` to zero. A zero tolerance requests zero gap but does not guarantee
 completion before a time or other limit.
